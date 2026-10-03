@@ -1,10 +1,17 @@
 {
   "name": "SprayPath by BCVR Immersive",
   "short_name": "SprayPath",
-  "description": "Hands-free walking directions to London street art through Meta glasses.",
+  "description": "Live AR walking directions to London street art.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
