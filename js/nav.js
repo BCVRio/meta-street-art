@@ -75,8 +75,17 @@ function stepText(s) {
 const remainingOnRoute = (p, steps, i) => dist(p, ll(steps[i].maneuver.location)) + steps.slice(i).reduce((a, x) => a + x.distance, 0);
 
 // ---------- Speech ----------
-function createSpeaker({ enabled } = {}) {
-  let voice = null, last = '';
+// ready(): optional; while it returns false (e.g. the camera or title sound is still starting) lines are held
+// back and spoken once it turns true, so directions never talk over the opening.
+function createSpeaker({ enabled, ready } = {}) {
+  let voice = null, last = '', held = [], timer = null;
+  const isReady = () => (!ready || ready()) && !(window.sprayIntroUntil > Date.now());
+  const flush = () => {
+    if (!isReady()) return;
+    clearInterval(timer); timer = null;
+    const lines = held; held = [];
+    lines.forEach((l) => speak(l.text, l.interrupt));
+  };
   const ok = 'speechSynthesis' in window;
   const pick = () => {
     const vs = speechSynthesis.getVoices();
@@ -88,16 +97,25 @@ function createSpeaker({ enabled } = {}) {
     say(text, { interrupt = false } = {}) {
       last = text;
       if (!ok || (enabled && !enabled())) return;
-      if (interrupt) speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      if (voice) u.voice = voice;
-      u.lang = 'en-GB';
-      u.rate = 1.02;
-      speechSynthesis.speak(u);
+      if (!isReady()) {
+        if (interrupt) held = [];
+        held.push({ text, interrupt }); if (held.length > 2) held.shift();
+        if (!timer) timer = setInterval(flush, 250);
+        return;
+      }
+      speak(text, interrupt);
     },
     repeat() { if (last) this.say(last, { interrupt: true }); },
-    cancel() { if (ok) speechSynthesis.cancel(); },
+    cancel() { held = []; if (ok) speechSynthesis.cancel(); },
   };
+  function speak(text, interrupt) {
+    if (interrupt) speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    if (voice) u.voice = voice;
+    u.lang = 'en-GB';
+    u.rate = 1.02;
+    speechSynthesis.speak(u);
+  }
 }
 const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 

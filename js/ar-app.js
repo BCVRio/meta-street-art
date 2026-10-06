@@ -35,7 +35,14 @@
   // ---------- Voice (same on/off setting as the map page) ----------
   var voiceOn = true;
   try { var v = localStorage.getItem('spraypath.voice'); if (v !== null) voiceOn = JSON.parse(v); } catch (e) {}
-  var speaker = N.createSpeaker({ enabled: function () { return voiceOn; } });
+  // Stay quiet until the camera has been running for a moment, so nothing is spoken over the ZapWorks
+  // loading screen or the camera permission prompt.
+  var camLiveAt = 0;
+  var speaker = N.createSpeaker({ enabled: function () { return voiceOn; }, ready: function () {
+    if (!(state.cameraFrames > 0)) return false;
+    if (!camLiveAt) camLiveAt = Date.now();
+    return Date.now() - camLiveAt > 1500;
+  } });
 
   // ---------- Position: GPS, or a demo walk from the position passed by the map page ----------
   if (demo && params.get('lat')) {

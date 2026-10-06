@@ -109,12 +109,24 @@
   });
   requestAnimationFrame(function () { root.classList.add('go'); });
 
+  // Sound logo: spray-can rattle, a "psssht", a neon chime, then "Welcome to Spray Path" (voice made with
+  // Higgsfield). Phones only allow sound after a tap, so it plays from Begin now.
+  var welcome = new Audio('assets/sounds/welcome.mp3');
+  welcome.preload = 'auto';
+
   // Begin now: zoom through into the map.
   var btn = document.getElementById('begin');
   btn.addEventListener('click', function () {
     try { sessionStorage.setItem('spraypath.splash', '1'); } catch (e) {}
-    // This tap also unlocks speech on iOS for the voice directions.
-    try { if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {}
+    // Voice directions wait until the sound logo has finished (see createSpeaker in nav.js).
+    window.sprayIntroUntil = Date.now() + 5000;
+    try {
+      var played = welcome.play();
+      if (played && played.catch) played.catch(function () { window.sprayIntroUntil = 0; });
+      welcome.addEventListener('ended', function () { window.sprayIntroUntil = 0; });
+    } catch (e) { window.sprayIntroUntil = 0; }
+    // This tap also unlocks speech on iOS for the voice directions (a silent, empty line).
+    try { if ('speechSynthesis' in window) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
     // Ask for compass access from this tap (iOS), used later in AR.
     try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(function () {}); } catch (e) {}
     root.classList.add('leaving');

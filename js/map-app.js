@@ -11,7 +11,12 @@
   function load(k, d) { try { var v = localStorage.getItem('spraypath.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem('spraypath.' + k, JSON.stringify(v)); } catch (e) {} }
   var opts = { voice: load('voice', true), demo: params.has('demo') || load('demo', false) };
-  var speaker = N.createSpeaker({ enabled: function () { return opts.voice; } });
+  // Hold voice lines until the page has had a tap and the title page has gone (and its welcome sound has
+  // played, see splash.js), so nothing is spoken over the ZapWorks loading screen.
+  var touched = false;
+  ['pointerdown', 'keydown'].forEach(function (ev) { addEventListener(ev, function () { touched = true; }, { capture: true, once: true }); });
+  var speaker = N.createSpeaker({ enabled: function () { return opts.voice; },
+    ready: function () { return touched && !document.getElementById('splash'); } });
   var say = function (t, o) { speaker.say(t, o); };
 
   // ---------- Map ----------
