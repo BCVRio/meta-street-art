@@ -10,7 +10,7 @@
   <title>SprayPath · BCVR Immersive</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <style>
     :root {
       --bg: #0b0b0f; --panel: #16161d; --line: #2a2a35; --text: #f4f4f7; --muted: #9a9aa8;
@@ -22,6 +22,10 @@
       -webkit-font-smoothing: antialiased; }
     button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
     .hidden { display: none !important; }
+    #load-errors { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 50; padding: 14px 16px;
+      border-radius: 14px; background: #3a0d1c; color: #ffd7e3; border: 1px solid var(--accent); font-size: 14px; line-height: 1.4; }
+    #load-errors[hidden] { display: none; }
+    #load-errors ul { margin: 8px 0 0 18px; word-break: break-word; }
 
     /* ---------- Home ---------- */
     #home { max-width: 720px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 16px 40px; }
@@ -78,14 +82,41 @@
     .btns button { padding: 10px 14px; border-radius: 999px; background: #222; border: 1px solid #333; font-size: 14px; }
     .btns button.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
   </style>
-  <!-- A-Frame (bundles three.js). Must load before js/app.js registers the SprayPath components. -->
-  <script src="https://aframe.io/releases/1.8.0/aframe.min.js"></script>
+  <!-- Shows load errors on screen (phones have no console). -->
+  <script>
+    (function () {
+      var shown = {};
+      window.sprayReport = function (msg) {
+        if (shown[msg]) return; shown[msg] = 1;
+        var show = function () {
+          var box = document.getElementById('load-errors');
+          if (!box) return setTimeout(show, 50);
+          box.hidden = false;
+          var li = document.createElement('li'); li.textContent = msg; box.querySelector('ul').appendChild(li);
+        };
+        show();
+      };
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && t !== window && (t.src || t.href)) window.sprayReport('Could not load ' + (t.src || t.href));
+        else window.sprayReport((e.message || 'Script error') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) { window.sprayReport('Error: ' + ((e.reason && e.reason.message) || e.reason)); });
+      setTimeout(function () { if (!window.sprayReady) window.sprayReport('The app did not start within 10 seconds (js/app.js not loaded or failed).'); }, 10000);
+    })();
+  </script>
+  <!-- A-Frame (bundles three.js). Must load before js/ar-view.js registers the SprayPath components. -->
+  <script src="vendor/aframe/aframe-1.8.0.min.js"></script>
   <!-- Zappar for A-Frame 4.0.0 (built by scripts/build-zappar.sh): camera, motion tracking, image tracking. -->
   <script src="vendor/zappar-aframe/zappar-aframe.js"></script>
 </head>
 <body>
 
 <!-- ================= HOME ================= -->
+<div id="load-errors" hidden role="alert">
+  <b>Something went wrong loading SprayPath.</b> Please screenshot this and send it over:
+  <ul></ul>
+</div>
 <main id="home">
   <header>
     <div class="brand">BCVR IMMERSIVE</div>
@@ -146,7 +177,7 @@
   </div>
 </section>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -3,7 +3,12 @@ import {
   dist, bearing, distToSeg, ll, compassWord, fmtDist, sayDist, walkMins, fmtMins, lc,
   fetchRoute, stepText, remainingOnRoute, createSpeaker, buzz, createCompass,
 } from './nav-core.js';
-import { ARView } from './ar-view.js';
+// The AR module (A-Frame + Zappar) loads on demand, so the home screen works even if it can't load.
+let ARView = null;
+async function loadAR() {
+  if (!ARView) ({ ARView } = await import('./ar-view.js'));
+  return ARView;
+}
 
 const $ = (id) => document.getElementById(id);
 const spotById = Object.fromEntries(SPOTS.map((s) => [s.id, s]));
@@ -64,6 +69,11 @@ const nav = { active: false, ready: false, queue: [], idx: 0, route: null, step:
 const currentSpot = () => spotById[nav.queue[nav.idx]];
 
 async function startTrip(ids) {
+  try { await loadAR(); } catch (e) {
+    window.sprayReport?.(`AR could not load: ${e.message || e}`);
+    setStatus('AR could not load. Check your connection and reload the page.');
+    return;
+  }
   const why = ARView.incompatible();   // shows Zappar's "unsupported browser" screen if needed
   if (why) { setStatus(why); return; }
   nav.active = true; nav.ready = false; nav.queue = ids; nav.idx = 0;
@@ -328,3 +338,4 @@ else startGPS();
 const pre = params.get('tour') ? TOURS.find((t) => t.id === params.get('tour'))?.stops
           : spotById[params.get('spot')] ? [params.get('spot')] : null;
 if (pre) startTrip(pre);
+window.sprayReady = true;
