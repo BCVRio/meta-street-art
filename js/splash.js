@@ -1,14 +1,15 @@
 // SprayPath opening title: Higgsfield key art (assets/title-keyart.webp) brought to life with a kinetic
 // title reveal, a light pulse running along the painted orb trail, drifting spray particles and a
-// tilt parallax. "Begin now" zooms through into the map. Shown once per visit (session).
+// tilt parallax. "Begin now" zooms through into the map. Shown on every launch, but not when coming back
+// from the AR page or opening a shared spot/tour link.
 (function () {
   'use strict';
   var root = document.getElementById('splash');
   if (!root) return;
   var params = new URLSearchParams(location.search);
-  var seen = false;
-  try { seen = sessionStorage.getItem('spraypath.splash') === '1'; } catch (e) {}
-  if (seen || params.has('spot') || params.has('tour') || params.has('nosplash')) {
+  var fromAR = false;
+  try { var ref = new URL(document.referrer); fromAR = ref.origin === location.origin && /ar\.html$/.test(ref.pathname); } catch (e) {}
+  if (fromAR || params.has('spot') || params.has('tour') || params.has('nosplash')) {
     root.remove(); document.documentElement.classList.remove('splash-open'); return;
   }
 
@@ -107,17 +108,15 @@
     if (i >= 5) s.className = 'pink';           // "Spray" white, "Path" pink
     title.appendChild(s);
   });
-  requestAnimationFrame(function () { root.classList.add('go'); });
-
   // Sound logo: spray-can rattle, a "psssht", a neon chime, then "Welcome to Spray Path" (voice made with
-  // Higgsfield). Phones only allow sound after a tap, so it plays from Begin now.
+  // Higgsfield). Phones only allow sound after a tap: it plays from the tap on ZapWorks' Continue button
+  // (see below), or from Begin now when there is no ZapWorks screen.
   var welcome = new Audio('assets/sounds/welcome.mp3');
   welcome.preload = 'auto';
-
-  // Begin now: zoom through into the map.
-  var btn = document.getElementById('begin');
-  btn.addEventListener('click', function () {
-    try { sessionStorage.setItem('spraypath.splash', '1'); } catch (e) {}
+  var soundPlayed = false;
+  function playSound() {
+    if (soundPlayed) return;
+    soundPlayed = true;
     // Voice directions wait until the sound logo has finished (see createSpeaker in nav.js).
     window.sprayIntroUntil = Date.now() + 5000;
     try {
@@ -125,6 +124,33 @@
       if (played && played.catch) played.catch(function () { window.sprayIntroUntil = 0; });
       welcome.addEventListener('ended', function () { window.sprayIntroUntil = 0; });
     } catch (e) { window.sprayIntroUntil = 0; }
+  }
+
+  // Start the title reveal once it can actually be seen. On ZapWorks' free plan a "Continue" screen is added
+  // on top of the page (after this script), so wait for it to be dismissed.
+  var started = false;
+  function start() {
+    if (started) return;
+    started = true;
+    t0 = performance.now();
+    requestAnimationFrame(function () { root.classList.add('go'); });
+  }
+  function watchZapWorks() {
+    var zw = document.querySelector('[class^="zws0-"]');
+    var input = zw && zw.querySelector('input');
+    if (!zw || !input || input.checked || getComputedStyle(zw).display === 'none') { start(); return; }
+    input.addEventListener('change', function () { playSound(); setTimeout(start, 250); });
+    var poll = setInterval(function () {        // in case it goes away some other way
+      if (getComputedStyle(zw).display === 'none' || !zw.isConnected) { clearInterval(poll); start(); }
+    }, 500);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchZapWorks);
+  else watchZapWorks();
+
+  // Begin now: zoom through into the map.
+  var btn = document.getElementById('begin');
+  btn.addEventListener('click', function () {
+    playSound();
     // This tap also unlocks speech on iOS for the voice directions (a silent, empty line).
     try { if ('speechSynthesis' in window) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
     // Ask for compass access from this tap (iOS), used later in AR.
