@@ -8,11 +8,11 @@ This is a staged rebuild: each milestone is tested on a real phone before the ne
 | Page | What it does | Status |
 | --- | --- | --- |
 | `index.html`, map | OpenStreetMap map, live GPS, walking tours, turn-by-turn directions (route on the map, next-turn card, full step list, voice prompts, re-routing when you go off route), arrival stories, demo walk | Built |
-| `ar.html`, AR | Zappar camera (set up as in Zappar's A-Frame docs), 3D arrow to the chosen spot, status panel for testing | **Milestone 1**: test on iPhone |
+| `ar.html`, AR | Zappar camera (set up as in Zappar's A-Frame docs), a trail of pink dots on the ground along the walking route, pink guide arrow, turn-by-turn labels matching the map, arrival story, status panel | **Milestone 2**: test on iPhone |
 
 Next milestones, each only after the last one works on a phone:
-1. Zappar camera + one arrow (now)
-2. Route arrows on the pavement in AR, synced with the map's turn-by-turn
+1. Zappar camera + one arrow ✓
+2. Pink dot trail along the route on the pavement, synced with the map's turn-by-turn (now)
 3. Beacon over the artwork, arrival in AR
 4. Mural recognition (Zappar image targets)
 
@@ -22,16 +22,23 @@ Next milestones, each only after the last one works on a phone:
 index.html          Map page
 ar.html             AR page (A-Frame scene with zappar-camera, zappar-permissions-ui, zappar-compatibility-ui)
 js/errors.js        On-screen error banner (phones have no console)
+js/worker-shim.js   Starts Zappar's workers from blob: URLs so they run under ZapWorks' cross-origin isolation
 js/spots.js         The 13 spots and 3 walking tours
 js/nav.js           Geo maths, OSRM walking routes, voice, compass
 js/map-app.js       Map page logic
-js/ar-app.js        AR components (sp-pointer, sp-arrow, sp-label) and the status panel
+js/ar-app.js        AR: route + turn-by-turn, components sp-world (north + GPS alignment), sp-dots, sp-pointer, sp-arrow, sp-label; status panel
 vendor/             A-Frame 1.8.0, Zappar for A-Frame 4.0.0 (bundled), Leaflet 1.9.4
 tools/zappar-build  How vendor/zappar-aframe is built (scripts/build-zappar.sh)
 scripts/            package-zapworks.sh (zip for upload), train-target.sh (mural targets), build-zappar.sh
 ```
 
 All scripts are plain `<script>` files: no modules and no build step for the app itself.
+
+## ZapWorks hosting notes
+
+ZapWorks serves pages with `Cross-Origin-Embedder-Policy: require-corp` and `Cross-Origin-Opener-Policy: same-origin`.
+Under those headers, images from other sites must be requested with CORS (the map tiles use `crossOrigin`), and
+worker scripts need their own COEP header, so `js/worker-shim.js` starts Zappar's workers from `blob:` URLs instead.
 
 ## Publish on ZapWorks
 

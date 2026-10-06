@@ -39,6 +39,7 @@
     #status li::before { content: '●'; color: #ffcf73; }
     #status li.ok::before { color: #4dff9a; }
     #status li.bad::before { color: #ff5d7f; }
+    #story { margin: 10px 0 0; line-height: 1.45; font-size: 14px; max-height: 30vh; overflow-y: auto; }
     #compass-btn { margin-top: 10px; width: 100%; padding: 10px; border-radius: 12px; border: 0; background: #3dd6ff; color: #000; font: inherit; font-weight: 700; }
   </style>
 </head>
@@ -57,20 +58,25 @@
   <a-entity light="type: hemisphere; color: #ffffff; groundColor: #444466; intensity: 2.2"></a-entity>
   <a-entity light="type: directional; intensity: 1.4" position="2 5 3"></a-entity>
 
-  <!-- Arrow to the street art, floating ahead of you. -->
+  <!-- The street: east = +X, north = -Z, pavement at y = 0. sp-world lines it up with north and your GPS position. -->
+  <a-entity sp-world>
+    <a-entity sp-dots="color: #ff3d7f"></a-entity>
+  </a-entity>
+
+  <!-- Pink arrow floating ahead of you, pointing along the route. -->
   <a-entity sp-pointer>
     <a-entity sp-arrow="color: #ff3d7f" scale="0.7 0.7 0.7" rotation="0 0 0"></a-entity>
-    <a-entity sp-label="width: 1.6" position="0 0.75 0"></a-entity>
+    <a-entity sp-label="width: 1.6" position="0 0.7 0"></a-entity>
   </a-entity>
 </a-scene>
 
 <a id="back" class="glass" href="index.html">← Map</a>
 
-<section id="status" class="glass">
+<section id="status" class="glass collapsed">
   <header>
     <div id="arrow2d" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 3l7 9h-4.5v9h-5v-9H5z" fill="#000"/></svg></div>
-    <h1>AR test · milestone 1<small>Screenshot this panel if something looks wrong</small></h1>
-    <button id="status-toggle">Hide</button>
+    <h1>Follow the pink dots<small>Tap Show for status · screenshot it if something looks wrong</small></h1>
+    <button id="status-toggle">Show</button>
   </header>
   <ul>
     <li id="st-zappar"><span class="k">Zappar</span><span class="v">…</span></li>
@@ -78,8 +84,10 @@
     <li id="st-motion"><span class="k">Motion</span><span class="v">…</span></li>
     <li id="st-compass"><span class="k">Compass</span><span class="v">…</span></li>
     <li id="st-gps"><span class="k">GPS</span><span class="v">…</span></li>
+    <li id="st-route"><span class="k">Route</span><span class="v">…</span></li>
     <li id="st-target"><span class="k">Target</span><span class="v">…</span></li>
   </ul>
+  <p id="story" class="hidden"></p>
   <button id="compass-btn" class="hidden">Enable compass</button>
 </section>
 </body>
