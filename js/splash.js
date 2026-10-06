@@ -1,15 +1,13 @@
 // SprayPath opening title: Higgsfield key art (assets/title-keyart.webp) brought to life with a kinetic
 // title reveal, a light pulse running along the painted orb trail, drifting spray particles and a
-// tilt parallax. "Begin now" zooms through into the map. Shown on every launch, but not when coming back
-// from the AR page or opening a shared spot/tour link.
+// tilt parallax. "Begin now" zooms through into the map. Shown on every launch; skipped only by an explicit
+// ?nosplash (the AR page's back link) or a shared spot/tour link.
 (function () {
   'use strict';
   var root = document.getElementById('splash');
   if (!root) return;
   var params = new URLSearchParams(location.search);
-  var fromAR = false;
-  try { var ref = new URL(document.referrer); fromAR = ref.origin === location.origin && /ar\.html$/.test(ref.pathname); } catch (e) {}
-  if (fromAR || params.has('spot') || params.has('tour') || params.has('nosplash')) {
+  if (params.has('spot') || params.has('tour') || params.has('nosplash')) {
     root.remove(); document.documentElement.classList.remove('splash-open'); return;
   }
 
@@ -131,10 +129,23 @@
   var started = false;
   function start() {
     if (started) return;
+    if (document.visibilityState === 'hidden') {     // e.g. still behind an app's loading screen
+      document.addEventListener('visibilitychange', function again() {
+        if (document.visibilityState !== 'visible') return;
+        document.removeEventListener('visibilitychange', again); start();
+      });
+      return;
+    }
     started = true;
     t0 = performance.now();
     requestAnimationFrame(function () { root.classList.add('go'); });
+    // Begin now only takes taps once it has faded in, so a tap meant for a loading screen can't skip the title.
+    setTimeout(function () { root.classList.add('ready'); }, 2200);
   }
+
+  // Which ZapWorks version this is (the number in the URL), to check a phone has the latest upload.
+  var ver = location.pathname.match(/\/(\d+)\//);
+  root.querySelector('.splash-ver').textContent = ver ? 'v' + ver[1] : 'dev';
   function watchZapWorks() {
     var zw = document.querySelector('[class^="zws0-"]');
     var input = zw && zw.querySelector('input');
@@ -150,6 +161,7 @@
   // Begin now: zoom through into the map.
   var btn = document.getElementById('begin');
   btn.addEventListener('click', function () {
+    if (!root.classList.contains('ready')) return;
     playSound();
     // This tap also unlocks speech on iOS for the voice directions (a silent, empty line).
     try { if ('speechSynthesis' in window) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}

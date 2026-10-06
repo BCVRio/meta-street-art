@@ -454,7 +454,7 @@
       var c = $('status').classList.toggle('collapsed');
       $('status-toggle').textContent = c ? 'Show' : 'Hide';
     };
-    $('back').href = 'index.html' + (demo ? '?demo=1' : '');
+    $('back').href = 'index.html?nosplash=1' + (demo ? '&demo=1' : '');
     $('real-gps').onclick = function () {
       try { localStorage.setItem('spraypath.demo', 'false'); } catch (e) {}
       location.href = 'ar.html' + (state.target ? '?spot=' + encodeURIComponent(state.target.id) : '');
