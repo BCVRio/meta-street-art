@@ -54,8 +54,16 @@
   map.on('dragstart', function () { followPausedUntil = Date.now() + 15000; });
   $('btn-locate').onclick = function () {
     followPausedUntil = 0; follow = true;
-    if (pos) map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 17));
+    if (pos) centreOn([pos.lat, pos.lng], Math.max(map.getZoom(), 17), true);
   };
+
+  // Centre a point in the part of the map you can see (above the bottom panel).
+  function centreOn(ll, zoom, animate) {
+    zoom = zoom || map.getZoom();
+    var sheetH = $('sheet').offsetHeight || 0;
+    var pt = map.project(ll, zoom).add([0, sheetH / 2]);
+    map.setView(map.unproject(pt, zoom), zoom, { animate: !!animate });
+  }
 
   function drawYou() {
     if (!pos) return;
@@ -65,8 +73,8 @@
       youAcc = L.circle(ll, { radius: pos.acc || 20, color: '#3dd6ff', weight: 1, fillOpacity: 0.1 }).addTo(map);
     } else { you.setLatLng(ll); youAcc.setLatLng(ll).setRadius(Math.min(pos.acc || 20, 200)); }
     // Centre on you at the first fix, then keep following you (paused for 15 s whenever you drag the map).
-    if (!centredOnce) { centredOnce = true; map.setView(ll, trip.active ? Math.max(map.getZoom(), 16) : 16); return; }
-    if (follow && Date.now() > followPausedUntil) map.panTo(ll, { animate: true });
+    if (!centredOnce) { centredOnce = true; centreOn(ll, trip.active ? Math.max(map.getZoom(), 16) : 16); return; }
+    if (follow && Date.now() > followPausedUntil) centreOn(ll, null, true);
   }
 
   // ---------- Position: GPS or demo walk ----------

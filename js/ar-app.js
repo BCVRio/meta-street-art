@@ -13,8 +13,8 @@
   var N = window.NAV, THREE = AFRAME.THREE;
   var params = new URLSearchParams(location.search);
   var $ = function (id) { return document.getElementById(id); };
-  var EYE = 1.5;                       // phone height above the pavement (metres)
-  var DOT_SPACING = 1.3, DOT_START = 3, DOT_FADE_IN = 2.5, DOT_RANGE = 42, MAX_DOTS = 40;
+  var EYE = 1.3;                       // phone height above the pavement (held at chest height, tilted down)
+  var DOT_SPACING = 1.2, DOT_START = 1.6, DOT_FADE_IN = 1.4, DOT_RANGE = 40, MAX_DOTS = 40;
   var SNAP_MAX = 30;                   // within this many metres of the route, lock your position onto it
   var GUIDE_LOOKAHEAD = 12;            // the arrow points this far along the route
   var ARRIVE_RADIUS = 20;
@@ -123,10 +123,11 @@
 
   // Your position for drawing: snapped onto the route (like a sat-nav), so GPS wobble sideways doesn't
   // move the trail, and smoothed along it so small backward jitter is ignored. Computed once per frame.
-  var track = { s: null, at: -1, cache: null };
+  var track = { s: null, at: -1, cache: null, last: 0 };
   function userAnchor() {
-    var now = Math.floor(performance.now() / 8);
+    var ms = performance.now(), now = Math.floor(ms / 8);
     if (track.at === now && track.cache) return track.cache;
+    var dt = Math.min(0.5, track.last ? (ms - track.last) / 1000 : 0); track.last = ms;
     var u = toLocal(state.pos), out;
     if (!nav.pts) out = { x: u.x, z: u.z, s: null };
     else {
@@ -134,8 +135,8 @@
       if (pr.off > SNAP_MAX) { track.s = null; out = { x: u.x, z: u.z, s: pr.s }; }
       else {
         if (track.s === null || Math.abs(pr.s - track.s) > 30) track.s = pr.s;              // first fix or big jump
-        else if (pr.s - track.s > 4) track.s += (pr.s - track.s - 2) * 0.04;                  // clearly walked on: glide forward
-        else if (track.s - pr.s > 10) track.s += (pr.s - track.s + 4) * 0.03;                 // clearly went back
+        else if (pr.s - track.s > 3) track.s += (pr.s - track.s - 1) * (1 - Math.exp(-dt / 0.5));   // walked on: catch up in ~1 s
+        else if (track.s - pr.s > 10) track.s += (pr.s - track.s + 4) * (1 - Math.exp(-dt / 1.5));  // clearly went back
         // (smaller differences are GPS wobble while standing still: ignore them)
         var p = routeAt(track.s);
         out = { x: p.x, z: p.z, s: track.s };
@@ -144,6 +145,7 @@
     track.at = now; track.cache = out;
     return out;
   }
+  window.sprayDebug = { nav: nav, anchor: function () { return userAnchor(); }, local: function () { return toLocal(state.pos); } };
 
   // Turn-by-turn, the same rules as the map page.
   function onPosition() {
@@ -187,25 +189,57 @@
   }
 
   // ---------- Geometry ----------
-  function arrowGeometry() {
+  // Navigation pointer: a rounded arrowhead with a notched tail, smoothly bevelled.
+  function arrowShape(k) {
     var s = new THREE.Shape();
-    s.moveTo(0, 0.7); s.lineTo(0.42, 0.15); s.lineTo(0.17, 0.15); s.lineTo(0.17, -0.5);
-    s.lineTo(-0.17, -0.5); s.lineTo(-0.17, 0.15); s.lineTo(-0.42, 0.15); s.closePath();
-    var g = new THREE.ExtrudeGeometry(s, { depth: 0.12, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2 });
-    g.translate(0, 0, -0.06);
+    s.moveTo(0, 0.78 * k);
+    s.quadraticCurveTo(0.04 * k, 0.78 * k, 0.07 * k, 0.72 * k);
+    s.lineTo(0.52 * k, -0.3 * k);
+    s.quadraticCurveTo(0.56 * k, -0.42 * k, 0.44 * k, -0.4 * k);
+    s.lineTo(0.03 * k, -0.12 * k);
+    s.quadraticCurveTo(0, -0.1 * k, -0.03 * k, -0.12 * k);
+    s.lineTo(-0.44 * k, -0.4 * k);
+    s.quadraticCurveTo(-0.56 * k, -0.42 * k, -0.52 * k, -0.3 * k);
+    s.lineTo(-0.07 * k, 0.72 * k);
+    s.quadraticCurveTo(-0.04 * k, 0.78 * k, 0, 0.78 * k);
+    return s;
+  }
+  function arrowGeometry(k, depth) {
+    var g = new THREE.ExtrudeGeometry(arrowShape(k), { depth: depth, curveSegments: 24, bevelEnabled: true,
+      bevelSize: 0.035, bevelThickness: 0.035, bevelSegments: 6 });
+    g.translate(0, 0, -depth / 2);
     g.rotateX(-Math.PI / 2);          // lies flat, tip pointing along -Z
     return g;
+  }
+  // Soft round glow (white; tinted per use), drawn additively.
+  var glowTex = null;
+  function glowTexture() {
+    if (glowTex) return glowTex;
+    var c = document.createElement('canvas'); c.width = c.height = 256;
+    var g = c.getContext('2d'), grd = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.25, 'rgba(255,255,255,0.55)');
+    grd.addColorStop(0.6, 'rgba(255,255,255,0.12)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 256);
+    glowTex = new THREE.CanvasTexture(c); glowTex.colorSpace = THREE.SRGBColorSpace;
+    return glowTex;
   }
 
   // ---------- Components ----------
   AFRAME.registerComponent('sp-arrow', {
     schema: { color: { type: 'color', default: '#ff3d7f' } },
     init: function () {
-      // Tip raised ~35° towards you, so the arrow reads as an arrow rather than a thin bar seen edge-on.
-      var mesh = new THREE.Mesh(arrowGeometry(), new THREE.MeshStandardMaterial({
-        color: this.data.color, emissive: this.data.color, emissiveIntensity: 0.5, roughness: 0.4 }));
-      mesh.rotation.x = 0.6;
-      var tilt = new THREE.Group(); tilt.add(mesh);
+      // Glossy pink pointer with a white rim and a soft glow; tip raised ~35° towards you so it reads clearly.
+      var tilt = new THREE.Group();
+      var body = new THREE.Mesh(arrowGeometry(1, 0.1), new THREE.MeshStandardMaterial({
+        color: this.data.color, emissive: this.data.color, emissiveIntensity: 0.65, roughness: 0.22, metalness: 0.15 }));
+      var rim = new THREE.Mesh(arrowGeometry(1.13, 0.06), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      rim.position.y = -0.05;
+      var glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: this.data.color, transparent: true,
+        opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
+      glow.scale.set(1.6, 1.6, 1);
+      glow.renderOrder = -1;
+      tilt.add(glow, rim, body);
+      tilt.rotation.x = 0.6;
       this.el.setObject3D('mesh', tilt);
     },
   });
@@ -242,9 +276,10 @@
   // Aligns #sp-world with north and with your GPS position (see the comment at the top).
   AFRAME.registerComponent('sp-world', {
     init: function () { this.dir = new THREE.Vector3(); this.v = new THREE.Vector3(); this.snap = true; this.user = { x: 0, z: 0 }; },
-    tick: function () {
+    tick: function (time, dtMs) {
       var cam = this.el.sceneEl.camera, o = this.el.object3D;
       if (!cam || !state.pos || !nav.origin) return;
+      var dt = Math.min(0.5, (dtMs || 16) / 1000);
       cam.getWorldDirection(this.dir);
       var camYaw = Math.atan2(-this.dir.x, -this.dir.z), level = Math.abs(this.dir.y) < 0.85;
 
@@ -260,7 +295,7 @@
       state.headingSrc = heading === null ? '' : src;
       if (heading !== null && level) {
         var target = camYaw + heading * Math.PI / 180;
-        if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * 0.03;
+        if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * (1 - Math.exp(-dt / 0.6));
       }
       // Slide so your (route-snapped) position is under the camera.
       var u = userAnchor();
@@ -268,7 +303,7 @@
       this.v.set(u.x, 0, u.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), o.rotation.y);
       var tx = -this.v.x, tz = -this.v.z, ty = -EYE;
       if (this.snap) { o.position.set(tx, ty, tz); this.snap = heading === null; }
-      else { o.position.x += (tx - o.position.x) * 0.06; o.position.z += (tz - o.position.z) * 0.06; o.position.y = ty; }
+      else { var k = 1 - Math.exp(-dt / 0.2); o.position.x += (tx - o.position.x) * k; o.position.z += (tz - o.position.z) * k; o.position.y = ty; }
     },
   });
 
@@ -276,12 +311,13 @@
   AFRAME.registerComponent('sp-dots', {
     schema: { color: { type: 'color', default: '#ff3d7f' } },
     init: function () {
-      // Each dot is a flattened pink bead sitting on the pavement (reads well even at a shallow angle),
-      // over a soft glow disc on the ground.
-      var mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      var glowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide });
-      var core = new THREE.SphereGeometry(0.17, 20, 12); core.scale(1, 0.55, 1); core.translate(0, 0.1, 0);
-      var glow = new THREE.CircleGeometry(0.4, 28); glow.rotateX(-Math.PI / 2); glow.translate(0, 0.01, 0);
+      // Each dot is a glossy pink bead on the pavement over a soft additive glow pool, so the trail reads
+      // clearly in daylight and glows at night.
+      var mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.25 });
+      var glowMat = new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0xffffff, transparent: true, opacity: 0.9,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      var core = new THREE.SphereGeometry(0.15, 32, 16); core.scale(1, 0.6, 1); core.translate(0, 0.09, 0);
+      var glow = new THREE.PlaneGeometry(1.1, 1.1); glow.rotateX(-Math.PI / 2); glow.translate(0, 0.01, 0);
       this.core = new THREE.InstancedMesh(core, mat, MAX_DOTS);
       this.glow = new THREE.InstancedMesh(glow, glowMat, MAX_DOTS);
       [this.core, this.glow].forEach(function (m) {
@@ -320,7 +356,7 @@
     },
   });
 
-  // Pink arrow ~4 m ahead along the camera's view, pointing along the route (or at the spot with no route).
+  // Pink arrow in the bottom third of the view, pointing along the route (or at the spot with no route).
   AFRAME.registerComponent('sp-pointer', {
     init: function () { this.dir = new THREE.Vector3(); this.p = new THREE.Vector3(); this.yaw = null; },
     tick: function (t) {
@@ -331,10 +367,20 @@
 
       cam.getWorldPosition(this.p);
       cam.getWorldDirection(this.dir);
-      // Sit 4 m along where the camera points, a little below the centre of the view (and never below the
-      // pavement), so the arrow stays on screen whether the phone is held level or tilted down.
-      var py = this.p.y + this.dir.y * 4 - 0.45 + Math.sin(t / 450) * 0.04;
-      o.position.set(this.p.x + this.dir.x * 4, Math.max(py, this.p.y - EYE + 0.4), this.p.z + this.dir.z * 4);
+      // Sit in the bottom third of the screen, 3.2 m out along the view (never below the pavement), so you
+      // can hold the phone low and tilted down while walking.
+      var fovY = 2 * Math.atan(1 / cam.projectionMatrix.elements[5]);
+      if (!isFinite(fovY) || fovY < 0.2) fovY = 1;
+      // Direction through a point 32% of the way from the screen centre to the bottom edge.
+      var ray = this.ray || (this.ray = new THREE.Vector3());
+      ray.set(0, -0.32 * Math.tan(fovY / 2), -1).normalize().transformDirection(cam.matrixWorld);
+      // Go 3.2 m along it, or less if that would be under the pavement; scale with distance so the arrow
+      // keeps the same size on screen.
+      var d = 3.2;
+      if (ray.y < -0.01) d = Math.min(d, (EYE - 0.35) / -ray.y);
+      d = Math.max(d, 1.2);
+      o.position.set(this.p.x + ray.x * d, this.p.y + ray.y * d + Math.sin(t / 450) * 0.02 * d, this.p.z + ray.z * d);
+      o.scale.setScalar(d / 3.2);
       this.dir.y = 0;
       if (this.dir.lengthSq() < 1e-4) this.dir.set(0, 0, -1); else this.dir.normalize();
       var camYaw = Math.atan2(-this.dir.x, -this.dir.z);

@@ -7,8 +7,8 @@ This is a staged rebuild: each milestone is tested on a real phone before the ne
 
 | Page | What it does | Status |
 | --- | --- | --- |
-| `index.html`, map | OpenStreetMap map, live GPS, walking tours, turn-by-turn directions (route on the map, next-turn card, full step list, voice prompts, re-routing when you go off route), arrival stories, demo walk | Built |
-| `ar.html`, AR | Zappar camera (set up as in Zappar's A-Frame docs), a trail of pink dots on the ground along the walking route, pink guide arrow, turn-by-turn labels matching the map, arrival story, status panel | **Milestone 2**: test on iPhone |
+| `index.html`, map | Animated title page ("Follow the art.", Begin now), OpenStreetMap map, live GPS, walking tours, turn-by-turn directions (route on the map, next-turn card, full step list, voice prompts, re-routing when you go off route), arrival stories, demo walk | Built |
+| `ar.html`, AR | Zappar camera (set up as in Zappar's A-Frame docs), a trail of glowing pink dots on the pavement along the walking route, a 3D pink guide arrow in the bottom third of the screen (so you can hold the phone low), turn-by-turn labels matching the map, arrival story, status panel | **Milestone 2**: test on iPhone |
 
 Next milestones, each only after the last one works on a phone:
 1. Zappar camera + one arrow ✓
@@ -26,8 +26,10 @@ js/worker-shim.js   Starts Zappar's workers from blob: URLs so they run under Za
 js/spots.js         The 13 spots and 3 walking tours
 js/nav.js           Geo maths, OSRM walking routes, voice, compass
 js/map-app.js       Map page logic
+js/splash.js        Title page: animates the key art (assets/title-keyart.webp, made with Higgsfield) and Begin now
 js/ar-app.js        AR: route + turn-by-turn, components sp-world (north + GPS alignment), sp-dots, sp-pointer, sp-arrow, sp-label; status panel
-vendor/             A-Frame 1.8.0, Zappar for A-Frame 4.0.0 (bundled), Leaflet 1.9.4
+assets/             Title key art
+vendor/             A-Frame 1.8.0, Zappar for A-Frame 4.0.0 (bundled), Leaflet 1.9.4, Bungee font (OFL)
 tools/zappar-build  How vendor/zappar-aframe is built (scripts/build-zappar.sh)
 scripts/            package-zapworks.sh (zip for upload), train-target.sh (mural targets), build-zappar.sh
 ```
@@ -55,6 +57,6 @@ python3 -m http.server 8000
 
 ## Credits
 
-Map data © OpenStreetMap contributors. Walking routes: OSRM via FOSSGIS (`routing.openstreetmap.de`). Built with
+Map data © OpenStreetMap contributors. Walking routes: OSRM via FOSSGIS (`routing.openstreetmap.de`). Title key art generated with Higgsfield. Bungee font by David Jonathan Ross (SIL OFL). Built with
 [A-Frame](https://aframe.io), [Zappar for A-Frame](https://github.com/zappar-xr/zappar-aframe) and [Leaflet](https://leafletjs.com).
 Street art changes constantly; spots point to the wall or street.
