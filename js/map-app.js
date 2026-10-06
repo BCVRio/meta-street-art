@@ -50,7 +50,7 @@
   });
 
   var you = null, youAcc = null, routeLine = null, routeCasing = null;
-  var follow = true, followPausedUntil = 0;
+  var follow = true, followPausedUntil = 0, centredOnce = false;
   map.on('dragstart', function () { followPausedUntil = Date.now() + 15000; });
   $('btn-locate').onclick = function () {
     followPausedUntil = 0; follow = true;
@@ -64,7 +64,9 @@
       you = L.marker(ll, { icon: L.divIcon({ className: '', html: '<div class="you"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), zIndexOffset: 1000 }).addTo(map);
       youAcc = L.circle(ll, { radius: pos.acc || 20, color: '#3dd6ff', weight: 1, fillOpacity: 0.1 }).addTo(map);
     } else { you.setLatLng(ll); youAcc.setLatLng(ll).setRadius(Math.min(pos.acc || 20, 200)); }
-    if (trip.active && follow && Date.now() > followPausedUntil) map.panTo(ll, { animate: true });
+    // Centre on you at the first fix, then keep following you (paused for 15 s whenever you drag the map).
+    if (!centredOnce) { centredOnce = true; map.setView(ll, trip.active ? Math.max(map.getZoom(), 16) : 16); return; }
+    if (follow && Date.now() > followPausedUntil) map.panTo(ll, { animate: true });
   }
 
   // ---------- Position: GPS or demo walk ----------
@@ -157,7 +159,7 @@
       var latlngs = route.geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
       routeCasing = L.polyline(latlngs, { color: '#000', weight: 10, opacity: 0.5 }).addTo(map);
       routeLine = L.polyline(latlngs, { color: '#ff3d7f', weight: 6, opacity: 0.95 }).addTo(map);
-      if (first) map.fitBounds(routeLine.getBounds(), { paddingTopLeft: [30, 90], paddingBottomRight: [30, Math.round(innerHeight * 0.45)] });
+      if (first) { map.fitBounds(routeLine.getBounds(), { paddingTopLeft: [30, 90], paddingBottomRight: [30, Math.round(innerHeight * 0.45)] }); followPausedUntil = Date.now() + 6000; }
       renderSteps();
       if (opts.demo) simFollow(route.geometry.coordinates);
       var s0 = route.legs[0].steps[0];
@@ -293,6 +295,7 @@
   $('opt-voice').onclick = function () { opts.voice = !opts.voice; save('voice', opts.voice); syncSettings(); if (opts.voice) say('Voice directions on.', { interrupt: true }); };
   $('opt-demo').onclick = function () {
     opts.demo = !opts.demo; save('demo', opts.demo); syncSettings();
+    centredOnce = false;
     if (opts.demo) { stopGPS(); pos = null; setGps('Demo walk: pick a tour or spot'); }
     else { setGps('Finding your location…'); startGPS(); }
     renderSpots();

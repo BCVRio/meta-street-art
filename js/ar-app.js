@@ -14,7 +14,8 @@
   var params = new URLSearchParams(location.search);
   var $ = function (id) { return document.getElementById(id); };
   var EYE = 1.5;                       // phone height above the pavement (metres)
-  var DOT_SPACING = 1.3, DOT_START = 1.8, DOT_RANGE = 40, MAX_DOTS = 40;
+  var DOT_SPACING = 1.3, DOT_START = 3, DOT_FADE_IN = 2.5, DOT_RANGE = 42, MAX_DOTS = 40;
+  var SNAP_MAX = 30;                   // within this many metres of the route, lock your position onto it
   var GUIDE_LOOKAHEAD = 12;            // the arrow points this far along the route
   var ARRIVE_RADIUS = 20;
   var angleDiff = function (a, b) { return Math.atan2(Math.sin(a - b), Math.cos(a - b)); };
@@ -118,6 +119,30 @@
     while (i < P.length - 1 && C[i] < s) i++;
     var a = P[i - 1], b = P[i], seg = C[i] - C[i - 1] || 1, t = (s - C[i - 1]) / seg;
     return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) };
+  }
+
+  // Your position for drawing: snapped onto the route (like a sat-nav), so GPS wobble sideways doesn't
+  // move the trail, and smoothed along it so small backward jitter is ignored. Computed once per frame.
+  var track = { s: null, at: -1, cache: null };
+  function userAnchor() {
+    var now = Math.floor(performance.now() / 8);
+    if (track.at === now && track.cache) return track.cache;
+    var u = toLocal(state.pos), out;
+    if (!nav.pts) out = { x: u.x, z: u.z, s: null };
+    else {
+      var pr = routeProgress(u);
+      if (pr.off > SNAP_MAX) { track.s = null; out = { x: u.x, z: u.z, s: pr.s }; }
+      else {
+        if (track.s === null || Math.abs(pr.s - track.s) > 30) track.s = pr.s;              // first fix or big jump
+        else if (pr.s - track.s > 4) track.s += (pr.s - track.s - 2) * 0.04;                  // clearly walked on: glide forward
+        else if (track.s - pr.s > 10) track.s += (pr.s - track.s + 4) * 0.03;                 // clearly went back
+        // (smaller differences are GPS wobble while standing still: ignore them)
+        var p = routeAt(track.s);
+        out = { x: p.x, z: p.z, s: track.s };
+      }
+    }
+    track.at = now; track.cache = out;
+    return out;
   }
 
   // Turn-by-turn, the same rules as the map page.
@@ -235,15 +260,15 @@
       state.headingSrc = heading === null ? '' : src;
       if (heading !== null && level) {
         var target = camYaw + heading * Math.PI / 180;
-        if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * 0.04;
+        if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * 0.03;
       }
-      // Slide so the user's GPS position is under the camera.
-      var u = toLocal(state.pos);
+      // Slide so your (route-snapped) position is under the camera.
+      var u = userAnchor();
       this.user = u;
       this.v.set(u.x, 0, u.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), o.rotation.y);
       var tx = -this.v.x, tz = -this.v.z, ty = -EYE;
       if (this.snap) { o.position.set(tx, ty, tz); this.snap = heading === null; }
-      else { o.position.x += (tx - o.position.x) * 0.1; o.position.z += (tz - o.position.z) * 0.1; o.position.y = ty; }
+      else { o.position.x += (tx - o.position.x) * 0.06; o.position.z += (tz - o.position.z) * 0.06; o.position.y = ty; }
     },
   });
 
@@ -270,7 +295,7 @@
     tick: function (time) {
       var core = this.core, glow = this.glow;
       if (!nav.pts || !state.pos || state.arrived) { core.count = glow.count = 0; return; }
-      var t = time / 1000, s0 = routeProgress(toLocal(state.pos)).s, total = nav.cum[nav.cum.length - 1];
+      var a = userAnchor(), t = time / 1000, s0 = a.s !== null ? a.s : routeProgress(toLocal(state.pos)).s, total = nav.cum[nav.cum.length - 1];
       var phase = (t * 1.1) % DOT_SPACING;          // dots creep forward along the path
       var pulse = (t * 9) % (DOT_RANGE + 12);       // a bright wave runs ahead every few seconds
       var n = 0;
@@ -280,7 +305,8 @@
         var p = routeAt(s0 + ahead);
         var fade = 1 - ahead / DOT_RANGE;
         var wave = Math.max(0, 1 - Math.abs(ahead - pulse) / 2.5);
-        var sc = 0.8 + 0.5 * wave + 0.25 * fade;
+        var grow = Math.min(1, (ahead - DOT_START) / DOT_FADE_IN);   // dots grow in gently ahead of you
+        var sc = (0.8 + 0.5 * wave + 0.25 * fade) * (0.25 + 0.75 * grow);
         this.m.compose(this.p.set(p.x, 0, p.z), this.q.identity(), this.s.set(sc, sc, sc));
         core.setMatrixAt(n, this.m); glow.setMatrixAt(n, this.m);
         this.c.copy(this.base).multiplyScalar(0.45 + 0.55 * fade).lerp(new THREE.Color(1, 1, 1), wave * 0.45);
@@ -318,8 +344,8 @@
       if (!state.pos || !state.target || !state.headingSrc || state.arrived || !nav.origin) { arrow.visible = false; state.rel = null; return; }
 
       // Where to point, in the world's local frame, then into scene space via the world's rotation.
-      var u = toLocal(state.pos), aim;
-      if (nav.pts) aim = routeAt(routeProgress(u).s + GUIDE_LOOKAHEAD);
+      var u = userAnchor(), aim;
+      if (nav.pts) aim = routeAt((u.s !== null ? u.s : routeProgress(u).s) + GUIDE_LOOKAHEAD);
       else aim = toLocal(state.target);
       var yaw = Math.atan2(-(aim.x - u.x), -(aim.z - u.z)) + worldEl.object3D.rotation.y;
       this.yaw = this.yaw === null ? yaw : this.yaw + angleDiff(yaw, this.yaw) * 0.15;
@@ -357,6 +383,7 @@
     $('compass-btn').classList.toggle('hidden', state.orientEvents > 0);
     $('compass-hint').classList.toggle('hidden', state.orientEvents > 0 || !$('status').classList.contains('collapsed'));
     $('story').classList.toggle('hidden', !state.arrived);
+    $('demo-badge').classList.toggle('hidden', !demo);
     if (state.arrived && state.target) $('story').textContent = state.target.blurb;
   }
   setInterval(updateStatus, 300);
@@ -375,6 +402,10 @@
       $('status-toggle').textContent = c ? 'Show' : 'Hide';
     };
     $('back').href = 'index.html' + (demo ? '?demo=1' : '');
+    $('real-gps').onclick = function () {
+      try { localStorage.setItem('spraypath.demo', 'false'); } catch (e) {}
+      location.href = 'ar.html' + (state.target ? '?spot=' + encodeURIComponent(state.target.id) : '');
+    };
     window.sprayReady = true;
   });
 })();
