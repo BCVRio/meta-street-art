@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>SprayPath AR · BCVR Immersive</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <script src="js/errors.js"></script>
+  <!-- A-Frame, then Zappar for A-Frame (both bundled in vendor/), then our components, then the scene. -->
+  <script src="vendor/aframe/aframe-1.8.0.min.js"></script>
+  <script src="vendor/zappar-aframe/zappar-aframe.js"></script>
+  <script src="js/spots.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/ar-app.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000;
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #fff; }
+    .hidden { display: none !important; }
+    #load-errors { position: fixed; left: 12px; right: 12px; top: calc(60px + env(safe-area-inset-top)); z-index: 50; padding: 12px 14px;
+      border-radius: 14px; background: #3a0d1c; color: #ffd7e3; border: 1px solid #ff3d7f; font-size: 13px; }
+    #load-errors[hidden] { display: none; }
+    #load-errors ul { margin: 6px 0 0 18px; word-break: break-word; }
+    .glass { background: rgba(10,10,16,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid #2a2a35; }
+    #back { position: fixed; z-index: 20; top: calc(12px + env(safe-area-inset-top)); left: 12px; padding: 10px 14px; border-radius: 999px;
+      color: #fff; text-decoration: none; font-weight: 600; }
+    #status { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); border-radius: 16px; padding: 12px 14px; }
+    #status header { display: flex; align-items: center; gap: 12px; }
+    #arrow2d { width: 44px; height: 44px; flex: none; border-radius: 50%; background: #ff3d7f; display: grid; place-items: center; transition: transform .2s; }
+    #status h1 { font-size: 15px; margin: 0; flex: 1; }
+    #status h1 small { display: block; font-weight: 400; color: #a0a0ae; font-size: 12px; }
+    #status-toggle { background: none; border: 1px solid #2a2a35; color: #fff; border-radius: 999px; padding: 6px 10px; font: inherit; font-size: 12px; }
+    #status ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+    #status.collapsed ul, #status.collapsed #compass-btn { display: none; }
+    #status li { display: flex; gap: 8px; font-size: 13px; }
+    #status li .k { width: 74px; color: #a0a0ae; flex: none; }
+    #status li .v { flex: 1; min-width: 0; word-break: break-word; }
+    #status li::before { content: '●'; color: #ffcf73; }
+    #status li.ok::before { color: #4dff9a; }
+    #status li.bad::before { color: #ff5d7f; }
+    #compass-btn { margin-top: 10px; width: 100%; padding: 10px; border-radius: 12px; border: 0; background: #3dd6ff; color: #000; font: inherit; font-weight: 700; }
+  </style>
+</head>
+<body>
+<div id="load-errors" hidden role="alert"><b>Something went wrong.</b> Please screenshot this and send it over:<ul></ul></div>
+
+<!-- Set up as in Zappar's A-Frame documentation. -->
+<a-scene xr-mode-ui="enabled: false" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false"
+         renderer="colorManagement: true">
+  <a-entity zappar-permissions-ui id="permissions"></a-entity>
+  <a-entity zappar-compatibility-ui id="compatibility"></a-entity>
+
+  <!-- Camera feed + rotation from the phone's motion sensors. -->
+  <a-entity id="cam" camera zappar-camera="pose-mode: attitude"></a-entity>
+
+  <a-entity light="type: hemisphere; color: #ffffff; groundColor: #444466; intensity: 2.2"></a-entity>
+  <a-entity light="type: directional; intensity: 1.4" position="2 5 3"></a-entity>
+
+  <!-- Arrow to the street art, floating ahead of you. -->
+  <a-entity sp-pointer>
+    <a-entity sp-arrow="color: #ff3d7f" scale="0.7 0.7 0.7" rotation="0 0 0"></a-entity>
+    <a-entity sp-label="width: 1.6" position="0 0.75 0"></a-entity>
+  </a-entity>
+</a-scene>
+
+<a id="back" class="glass" href="index.html">← Map</a>
+
+<section id="status" class="glass">
+  <header>
+    <div id="arrow2d" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 3l7 9h-4.5v9h-5v-9H5z" fill="#000"/></svg></div>
+    <h1>AR test · milestone 1<small>Screenshot this panel if something looks wrong</small></h1>
+    <button id="status-toggle">Hide</button>
+  </header>
+  <ul>
+    <li id="st-zappar"><span class="k">Zappar</span><span class="v">…</span></li>
+    <li id="st-camera"><span class="k">Camera</span><span class="v">…</span></li>
+    <li id="st-motion"><span class="k">Motion</span><span class="v">…</span></li>
+    <li id="st-compass"><span class="k">Compass</span><span class="v">…</span></li>
+    <li id="st-gps"><span class="k">GPS</span><span class="v">…</span></li>
+    <li id="st-target"><span class="k">Target</span><span class="v">…</span></li>
+  </ul>
+  <button id="compass-btn" class="hidden">Enable compass</button>
+</section>
+</body>
+</html>

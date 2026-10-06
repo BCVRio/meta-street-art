@@ -1,7 +1,7 @@
 // London street art spots and walking tours.
 // Street art changes constantly: walls get repainted, pieces get buffed.
 // Coordinates point to the wall / street, not to a single guaranteed piece.
-export const SPOTS = [
+window.SPOTS = [
   {
     id: 'leake-street',
     name: 'Leake Street Graffiti Tunnel',
@@ -108,7 +108,7 @@ export const SPOTS = [
   },
 ];
 
-export const TOURS = [
+window.TOURS = [
   {
     id: 'shoreditch',
     name: 'Shoreditch Loop',
@@ -130,7 +130,7 @@ export const TOURS = [
 ];
 
 // Simulated start points for demo mode (nearest station to the first stop).
-export const DEMO_STARTS = [
+window.DEMO_STARTS = [
   { name: 'Liverpool Street', lat: 51.5178, lng: -0.0823 },
   { name: 'Waterloo', lat: 51.5031, lng: -0.1132 },
   { name: 'Camden Town', lat: 51.5392, lng: -0.1426 },

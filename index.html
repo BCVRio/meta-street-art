@@ -2,182 +2,151 @@
 <html lang="en-GB">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b0b0f">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="description" content="SprayPath by BCVR Immersive: live AR walking directions to London street art.">
+  <meta name="description" content="SprayPath by BCVR Immersive: walking directions and AR to London street art.">
   <title>SprayPath · BCVR Immersive</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <script src="js/errors.js"></script>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <style>
     :root {
-      --bg: #0b0b0f; --panel: #16161d; --line: #2a2a35; --text: #f4f4f7; --muted: #9a9aa8;
+      --bg: #0b0b0f; --panel: #16161d; --panel-2: #1f1f28; --line: #2a2a35; --text: #f4f4f7; --muted: #a0a0ae;
       --accent: #ff3d7f; --accent-2: #3dd6ff; --ok: #4dff9a;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
-    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       -webkit-font-smoothing: antialiased; }
-    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+    button, a.btn { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; text-decoration: none; }
     .hidden { display: none !important; }
-    #load-errors { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 50; padding: 14px 16px;
-      border-radius: 14px; background: #3a0d1c; color: #ffd7e3; border: 1px solid var(--accent); font-size: 14px; line-height: 1.4; }
+
+    #load-errors { position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 2000; padding: 12px 14px;
+      border-radius: 14px; background: #3a0d1c; color: #ffd7e3; border: 1px solid var(--accent); font-size: 13px; }
     #load-errors[hidden] { display: none; }
-    #load-errors ul { margin: 8px 0 0 18px; word-break: break-word; }
+    #load-errors ul { margin: 6px 0 0 18px; word-break: break-word; }
 
-    /* ---------- Home ---------- */
-    #home { max-width: 720px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 16px 40px; }
-    .brand { font-size: 11px; font-weight: 800; letter-spacing: 3px; color: var(--accent-2); margin-bottom: 4px; }
-    header h1 { font-size: 34px; letter-spacing: -0.5px; }
-    header h1 span { color: var(--accent); }
-    header p { color: var(--muted); margin-top: 6px; line-height: 1.45; }
-    .settings { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 10px; }
-    .chip { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-size: 14px; }
-    .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-    #status-line { font-size: 13px; color: var(--muted); min-height: 18px; }
-    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin: 22px 0 10px; }
-    .tours { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-    .tour { text-align: left; padding: 16px; border-radius: 16px; border: 1px solid var(--line);
-      background: linear-gradient(135deg, rgba(255,61,127,.2), rgba(61,214,255,.12)); }
-    .tour b { display: block; font-size: 17px; }
-    .tour small { color: var(--muted); }
-    .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
-    #map { height: 260px; border-radius: 16px; border: 1px solid var(--line); background: #111; }
-    .spot { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px; border-radius: 14px;
-      background: var(--panel); border: 1px solid var(--line); margin-bottom: 8px; }
+    #map { position: fixed; inset: 0; background: #1a1c22; }
+    .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.8); }
+    .leaflet-control-attribution { font-size: 10px; }
+
+    /* Top bar */
+    #top { position: fixed; z-index: 1000; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top));
+      display: flex; gap: 8px; align-items: center; pointer-events: none; }
+    #top > * { pointer-events: auto; }
+    .glass { background: rgba(14,14,20,.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); }
+    #brand { padding: 8px 14px; border-radius: 14px; flex: 1; min-width: 0; }
+    #brand small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 2.5px; color: var(--accent-2); }
+    #brand b { font-size: 19px; letter-spacing: -.3px; }
+    #brand b span { color: var(--accent); }
+    .round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; flex: none; }
+    .round[aria-pressed="true"] { border-color: var(--accent); }
+    #gps-chip { position: fixed; z-index: 1000; left: 12px; top: calc(74px + env(safe-area-inset-top)); padding: 5px 10px;
+      border-radius: 999px; font-size: 12px; color: var(--muted); }
+
+    /* Bottom sheet */
+    #sheet { position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0; max-height: 58vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      border-radius: 20px 20px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); border-bottom: 0; }
+    #sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 10px; }
+    h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin: 14px 0 8px; }
+    h2:first-of-type { margin-top: 2px; }
+    .tours { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+    .tour { text-align: left; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(255,61,127,.2), rgba(61,214,255,.1)); }
+    .tour b { display: block; }
+    .tour small { color: var(--muted); font-size: 12px; }
+    .spot { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 11px 12px; border-radius: 12px;
+      background: var(--panel-2); border: 1px solid var(--line); margin-bottom: 6px; }
     .spot .meta { flex: 1; min-width: 0; }
-    .spot b { display: block; }
-    .spot small { color: var(--muted); }
-    .spot .dist { color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .note { color: var(--muted); font-size: 13px; line-height: 1.55; margin-top: 24px; }
-    .note b { color: var(--text); }
+    .spot b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .spot small { color: var(--muted); font-size: 12px; }
+    .spot .dist { color: var(--accent-2); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; }
+    .settings { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .chip { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; }
+    .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+    .credit { margin-top: 12px; font-size: 11px; color: var(--muted); }
 
-    /* ---------- AR ---------- */
-    #ar { position: fixed; inset: 0; background: #000; overflow: hidden; touch-action: none; }
-    #ar .sp-scene { position: absolute; inset: 0; width: 100%; height: 100%; }
-    /* HUD layer above the 3D scene. Clicks pass through to the scene except on controls. */
-    #ar-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
-    #ar-overlay #ar-top, #ar-overlay #card { pointer-events: auto; }
-    .glass { background: rgba(0,0,0,.58); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-    #ar-top { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; gap: 8px; align-items: center; }
-    #ar-title { flex: 1; min-width: 0; padding: 10px 14px; border-radius: 14px; }
-    #ar-target { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-    #ar-stop { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .round { width: 44px; height: 44px; border-radius: 50%; font-size: 18px; flex: none; }
-    #ar-gps { position: absolute; top: calc(70px + env(safe-area-inset-top)); left: 14px; font-size: 11px; color: rgba(255,255,255,.6);
-      text-shadow: 0 1px 2px #000; }
-    #ar-hint { position: absolute; left: 50%; top: calc(96px + env(safe-area-inset-top)); transform: translateX(-50%); max-width: 90vw;
-      padding: 8px 14px; border-radius: 999px; font-size: 14px; text-align: center; }
-    .edge { position: absolute; top: 45%; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
-      font-size: 28px; font-weight: 800; color: var(--accent); animation: pulse 1s ease-in-out infinite alternate; }
-    #edge-left { left: 10px; } #edge-right { right: 10px; }
-    @keyframes pulse { from { transform: scale(.9); } to { transform: scale(1.08); } }
-    #card { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); padding: 16px; border-radius: 20px; }
-    #card-instr { font-size: 22px; font-weight: 700; line-height: 1.2; }
-    #card-sub { color: #c9c9d4; margin-top: 4px; font-variant-numeric: tabular-nums; }
-    #card-story { margin-top: 10px; line-height: 1.45; color: #e6e6ee; max-height: 32vh; overflow-y: auto; }
+    /* Directions */
+    #nav-next { display: flex; gap: 14px; align-items: center; }
+    #turn-icon { width: 56px; height: 56px; flex: none; border-radius: 14px; background: var(--accent); display: grid; place-items: center; }
+    #turn-icon svg { width: 34px; height: 34px; transition: transform .3s; }
+    #turn-text { min-width: 0; }
+    #turn-dist { font-size: 26px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+    #turn-instr { font-size: 17px; font-weight: 600; line-height: 1.25; }
+    #nav-summary { color: var(--muted); font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+    #nav-target { font-size: 12px; color: var(--accent-2); font-weight: 700; letter-spacing: .3px; margin-bottom: 8px; }
     .btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    .btns button { padding: 10px 14px; border-radius: 999px; background: #222; border: 1px solid #333; font-size: 14px; }
-    .btns button.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+    .btns button, .btns a.btn { padding: 10px 14px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
+    .btns .primary, .btns a.btn.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+    #steps { list-style: none; margin-top: 12px; border-top: 1px solid var(--line); }
+    #steps li { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+    #steps li.done { opacity: .4; }
+    #steps li.current { color: var(--text); font-weight: 600; }
+    #steps li span.d { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #story { margin-top: 10px; line-height: 1.5; }
+
+    .you { width: 18px; height: 18px; border-radius: 50%; background: var(--accent-2); border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(61,214,255,.25); }
+    .spot-pin { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 10px rgba(255,61,127,.8); }
+    .spot-pin.target { width: 22px; height: 22px; background: var(--ok); box-shadow: 0 0 14px rgba(77,255,154,.9); }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); }
+    .leaflet-popup-content b { display: block; margin-bottom: 2px; }
+    .leaflet-popup-content .pbtns { display: flex; gap: 6px; margin-top: 8px; }
+    .leaflet-popup-content .pbtns button, .leaflet-popup-content .pbtns a { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line);
+      background: var(--panel-2); color: var(--text); font-size: 13px; text-decoration: none; }
+    .leaflet-popup-content .pbtns .primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
   </style>
-  <!-- Shows load errors on screen (phones have no console). -->
-  <script>
-    (function () {
-      var shown = {};
-      window.sprayReport = function (msg) {
-        if (shown[msg]) return; shown[msg] = 1;
-        var show = function () {
-          var box = document.getElementById('load-errors');
-          if (!box) return setTimeout(show, 50);
-          box.hidden = false;
-          var li = document.createElement('li'); li.textContent = msg; box.querySelector('ul').appendChild(li);
-        };
-        show();
-      };
-      window.addEventListener('error', function (e) {
-        var t = e.target;
-        if (t && t !== window && (t.src || t.href)) window.sprayReport('Could not load ' + (t.src || t.href));
-        else window.sprayReport((e.message || 'Script error') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
-      }, true);
-      window.addEventListener('unhandledrejection', function (e) { window.sprayReport('Error: ' + ((e.reason && e.reason.message) || e.reason)); });
-      setTimeout(function () { if (!window.sprayReady) window.sprayReport('The app did not start within 10 seconds (js/app.js not loaded or failed).'); }, 10000);
-    })();
-  </script>
-  <!-- A-Frame (bundles three.js). Must load before js/ar-view.js registers the SprayPath components. -->
-  <script src="vendor/aframe/aframe-1.8.0.min.js"></script>
-  <!-- Zappar for A-Frame 4.0.0 (built by scripts/build-zappar.sh): camera, motion tracking, image tracking. -->
-  <script src="vendor/zappar-aframe/zappar-aframe.js"></script>
 </head>
 <body>
+<div id="load-errors" hidden role="alert"><b>Something went wrong.</b> Please screenshot this and send it over:<ul></ul></div>
 
-<!-- ================= HOME ================= -->
-<div id="load-errors" hidden role="alert">
-  <b>Something went wrong loading SprayPath.</b> Please screenshot this and send it over:
-  <ul></ul>
+<div id="map"></div>
+
+<div id="top">
+  <div id="brand" class="glass"><small>BCVR IMMERSIVE</small><b>Spray<span>Path</span></b></div>
+  <button id="btn-locate" class="round glass" title="Centre on me" aria-label="Centre on me">◎</button>
 </div>
-<main id="home">
-  <header>
-    <div class="brand">BCVR IMMERSIVE</div>
-    <h1>Spray<span>Path</span></h1>
-    <p>Live AR walking directions to London's street art. Pick a tour, hold up your phone and follow the arrows on the pavement.</p>
-  </header>
+<div id="gps-chip" class="glass">Finding your location…</div>
 
-  <div class="settings">
-    <button class="chip" id="opt-voice" aria-pressed="true">🔊 Voice guidance</button>
-    <button class="chip" id="opt-demo" aria-pressed="false">🧪 Demo walk</button>
-  </div>
-  <div id="status-line">Finding your location…</div>
+<section id="sheet" class="glass">
+  <div class="grab"></div>
 
-  <h2>Walking tours</h2>
-  <div class="tours" id="tours"></div>
-
-  <h2>Map</h2>
-  <div id="map"></div>
-
-  <h2>All spots</h2>
-  <div id="spots"></div>
-
-  <p class="note">
-    <b>How it works:</b> SprayPath uses your phone's camera, GPS and compass. Pink arrows flow along the pavement towards the
-    next turn, and a blue light beacon marks where the artwork is. When you point the camera at a mural SprayPath knows, it lights up
-    and tells you its story.<br><br>
-    <b>Tips:</b> hold the phone upright. If the arrows point the wrong way, move the phone in a figure of eight to calibrate the compass.
-    GPS is accurate to about 5–15 m between tall buildings. Look up from the screen when crossing roads.<br><br>
-    Street art changes all the time, so a piece may have been painted over.
-    Routes © OpenStreetMap contributors (FOSSGIS routing). Built with A-Frame and Zappar.<br><br>
-    <b>SprayPath is a BCVR Immersive experience.</b>
-  </p>
-</main>
-
-<!-- ================= AR ================= -->
-<section id="ar" class="hidden">
-  <!-- js/ar-view.js inserts the <a-scene> here -->
-  <div id="ar-overlay">
-  <div id="ar-top">
-    <div id="ar-title" class="glass"><span id="ar-target">–</span><span id="ar-stop"></span></div>
-    <button class="round glass" id="btn-mute" title="Voice on/off">🔊</button>
-    <button class="round glass" id="btn-exit" title="Exit">✕</button>
-  </div>
-  <div id="ar-gps"></div>
-  <div id="ar-hint" class="glass hidden"></div>
-  <div id="edge-left" class="edge glass hidden" aria-hidden="true">‹</div>
-  <div id="edge-right" class="edge glass hidden" aria-hidden="true">›</div>
-  <div id="card" class="glass">
-    <div id="card-instr">Starting…</div>
-    <div id="card-sub"></div>
-    <div id="card-story" class="hidden"></div>
-    <div class="btns">
-      <button id="btn-repeat">Repeat</button>
-      <button id="btn-skip">Skip stop</button>
-      <button id="btn-next" class="primary hidden">Next stop →</button>
+  <!-- Browse -->
+  <div id="browse">
+    <h2>Walking tours</h2>
+    <div class="tours" id="tours"></div>
+    <h2>Nearest street art</h2>
+    <div id="spots"></div>
+    <div class="settings">
+      <button class="chip" id="opt-voice" aria-pressed="true">🔊 Voice directions</button>
+      <button class="chip" id="opt-demo" aria-pressed="false">🧪 Demo walk</button>
     </div>
+    <p class="credit">Map data © OpenStreetMap contributors · Walking routes: OSRM (FOSSGIS) · A BCVR Immersive experience</p>
   </div>
+
+  <!-- Navigating -->
+  <div id="nav" class="hidden">
+    <div id="nav-target"></div>
+    <div id="nav-next">
+      <div id="turn-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 9h-4.5v9h-5v-9H5z" fill="#000"/></svg></div>
+      <div id="turn-text"><div id="turn-dist">–</div><div id="turn-instr">Finding a walking route…</div></div>
+    </div>
+    <div id="nav-summary"></div>
+    <div id="story" class="hidden"></div>
+    <div class="btns">
+      <a class="btn primary" id="btn-ar" href="ar.html">📷 AR view</a>
+      <button id="btn-steps">Steps</button>
+      <button id="btn-next" class="primary hidden">Next stop →</button>
+      <button id="btn-skip">Skip</button>
+      <button id="btn-end">End</button>
+    </div>
+    <ol id="steps" class="hidden"></ol>
   </div>
 </section>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script type="module" src="js/app.js"></script>
+<script src="js/spots.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/map-app.js"></script>
 </body>
 </html>

@@ -1,22 +1,25 @@
-// Navigation helpers: geo maths, walking routes, spoken guidance and compass heading.
+// Shared navigation helpers (plain script, exposes window.NAV): geo maths, OSRM walking routes,
+// spoken guidance and compass heading. Used by the map page and the AR page.
+(function () {
+'use strict';
 
 // ---------- Geo ----------
 const R = 6371000;
-export const rad = (d) => d * Math.PI / 180;
-export const deg = (r) => r * 180 / Math.PI;
+const rad = (d) => d * Math.PI / 180;
+const deg = (r) => r * 180 / Math.PI;
 
-export function dist(a, b) {
+function dist(a, b) {
   const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-export function bearing(a, b) {
+function bearing(a, b) {
   const y = Math.sin(rad(b.lng - a.lng)) * Math.cos(rad(b.lat));
   const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lng - a.lng));
   return (deg(Math.atan2(y, x)) + 360) % 360;
 }
 // Distance from point p to segment a-b (local flat projection, fine for city scale).
-export function distToSeg(p, a, b) {
+function distToSeg(p, a, b) {
   const k = Math.cos(rad(p.lat));
   const ax = (a.lng - p.lng) * k, ay = a.lat - p.lat, bx = (b.lng - p.lng) * k, by = b.lat - p.lat;
   const dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
@@ -24,23 +27,23 @@ export function distToSeg(p, a, b) {
   return Math.hypot(ax + t * dx, ay + t * dy) * 111320;
 }
 // Local east/north metres of p relative to origin o.
-export function toEN(p, o) {
+function toEN(p, o) {
   return { e: (p.lng - o.lng) * Math.cos(rad(o.lat)) * 111320, n: (p.lat - o.lat) * 110540 };
 }
-export const ll = ([lng, lat]) => ({ lat, lng });
-export const normAngle = (a) => ((a % 360) + 540) % 360 - 180;
+const ll = ([lng, lat]) => ({ lat, lng });
+const normAngle = (a) => ((a % 360) + 540) % 360 - 180;
 
 // ---------- Formatting ----------
 const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
-export const compassWord = (b) => COMPASS[Math.round(b / 45) % 8];
-export const fmtDist = (m) => (m < 1000 ? `${Math.max(5, Math.round(m / 5) * 5)} m` : `${(m / 1000).toFixed(1)} km`);
-export const sayDist = (m) => (m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} metres` : `${(m / 1000).toFixed(1)} kilometres`);
-export const walkMins = (m) => Math.max(1, Math.round(m / 1.3 / 60));
-export const fmtMins = (m) => `${walkMins(m)} min walk`;
-export const lc = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+const compassWord = (b) => COMPASS[Math.round(b / 45) % 8];
+const fmtDist = (m) => (m < 1000 ? `${Math.max(5, Math.round(m / 5) * 5)} m` : `${(m / 1000).toFixed(1)} km`);
+const sayDist = (m) => (m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} metres` : `${(m / 1000).toFixed(1)} kilometres`);
+const walkMins = (m) => Math.max(1, Math.round(m / 1.3 / 60));
+const fmtMins = (m) => `${walkMins(m)} min walk`;
+const lc = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 
 // ---------- Walking routes (OSRM foot profile on OpenStreetMap data) ----------
-export async function fetchRoute(from, to) {
+async function fetchRoute(from, to) {
   const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&steps=true`;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8000);
@@ -52,7 +55,7 @@ export async function fetchRoute(from, to) {
     return j.routes[0];
   } finally { clearTimeout(t); }
 }
-export function stepText(s) {
+function stepText(s) {
   // Skip unnamed or number-only ways (footpath refs read badly aloud).
   const name = s.name && !/^\d+$/.test(s.name.trim()) ? s.name : '';
   const m = s.maneuver, on = name ? ` onto ${name}` : '';
@@ -69,10 +72,10 @@ export function stepText(s) {
   }
 }
 // Remaining walking distance from p, given the route steps and the index of the next maneuver.
-export const remainingOnRoute = (p, steps, i) => dist(p, ll(steps[i].maneuver.location)) + steps.slice(i).reduce((a, x) => a + x.distance, 0);
+const remainingOnRoute = (p, steps, i) => dist(p, ll(steps[i].maneuver.location)) + steps.slice(i).reduce((a, x) => a + x.distance, 0);
 
 // ---------- Speech ----------
-export function createSpeaker({ enabled } = {}) {
+function createSpeaker({ enabled } = {}) {
   let voice = null, last = '';
   const ok = 'speechSynthesis' in window;
   const pick = () => {
@@ -96,13 +99,13 @@ export function createSpeaker({ enabled } = {}) {
     cancel() { if (ok) speechSynthesis.cancel(); },
   };
 }
-export const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 
 // ---------- Compass ----------
 // Heading (degrees clockwise from north) of the back camera, for a phone held up in front of you.
 // enable() must be called from a tap on iOS.
-export function createCompass() {
-  let heading = null;
+function createCompass() {
+  let heading = null, listening = false;
   const smooth = (h) => (heading === null ? h : (heading + normAngle(h - heading) * 0.2 + 360) % 360);
   const onOrient = (e) => {
     // iOS: tilt-compensated heading, already relative to true direction of view when upright.
@@ -117,15 +120,23 @@ export function createCompass() {
   };
   return {
     get: () => heading,
+    // Listens straight away (events flow once motion access is granted, e.g. by Zappar's prompt),
+    // then asks for permission where the browser needs it (iOS; only works from a tap).
     async enable() {
+      if (!listening) {
+        listening = true;
+        if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient);
+        window.addEventListener('deviceorientation', onOrient);
+      }
       try {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') return false;
+          return (await DeviceOrientationEvent.requestPermission()) === 'granted';
         }
       } catch { return false; }
-      if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient);
-      else window.addEventListener('deviceorientation', onOrient);
       return true;
     },
   };
 }
+
+window.NAV = { rad, deg, dist, bearing, distToSeg, toEN, ll, normAngle, compassWord, fmtDist, sayDist, walkMins, fmtMins, lc, fetchRoute, stepText, remainingOnRoute, createSpeaker, buzz, createCompass };
+})();

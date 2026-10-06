@@ -1,99 +1,53 @@
 # SprayPath, by BCVR Immersive
 
-Live AR walking directions to London street art, in the phone browser. There's no app to install, and it's hosted on ZapWorks.
+Walking directions and AR to London street art, hosted on **ZapWorks**. Built with OpenStreetMap, Leaflet,
+A-Frame and **Zappar for A-Frame**.
 
-Pick a tour or a spot, hold up your phone, and follow the pink arrows flowing along the pavement. A blue light beacon marks where
-the artwork is, and when you arrive you get the story behind the piece (on screen and read aloud).
+This is a staged rebuild: each milestone is tested on a real phone before the next is added.
 
-**Hosting:** upload to ZapWorks (see *Publish on ZapWorks*) or any HTTPS static host.
+| Page | What it does | Status |
+| --- | --- | --- |
+| `index.html`, map | OpenStreetMap map, live GPS, walking tours, turn-by-turn directions (route on the map, next-turn card, full step list, voice prompts, re-routing when you go off route), arrival stories, demo walk | Built |
+| `ar.html`, AR | Zappar camera (set up as in Zappar's A-Frame docs), 3D arrow to the chosen spot, status panel for testing | **Milestone 1**: test on iPhone |
 
-## How the AR works
-
-Built with **[A-Frame](https://aframe.io) 1.8** and **[Zappar for A-Frame](https://github.com/zappar-xr/zappar-aframe) 4.0.0**,
-hosted on **ZapWorks**.
-
-| Piece | What it does |
-| --- | --- |
-| Camera feed + phone motion | Zappar camera (`zappar-camera="pose-mode: attitude"`): camera background, lens-accurate projection, rotation from the motion sensors, permission prompts |
-| True north | Compass heading (`webkitCompassHeading` on iPhone, absolute orientation on Android) rotates `#sp-world` to line up with north |
-| Where you are | GPS (`watchPosition`), smoothed so the arrows glide rather than jump |
-| The route | Walking route from OSRM on OpenStreetMap data, drawn as chevrons on the pavement |
-| **Mural recognition** | Zappar image tracking (`zappar-image`): point the camera at a mural with a trained target and it lights up and plays its story |
-
-Works on iPhone (Safari) and Android (Chrome).
-
-**Accuracy:** GPS is typically 5–15 m between London's buildings and compasses can be thrown off by metal nearby, so arrows can sit
-a little to one side of the real street. The big guide arrow and the turn-by-turn card are what to follow. Moving the phone in a
-figure of eight recalibrates the compass.
-
-## A-Frame scene
-
-`js/ar-view.js` defines the scene markup (`SCENE_HTML`, `MURAL_HTML`) and these components, so the 3D look can be edited in plain
-A-Frame HTML:
-
-| Component / system | Role |
-| --- | --- |
-| `spraypath` (system) | Shared state; aligns `#sp-world` to north, anchors it to GPS, adds the mural image tracker |
-| `sp-world` | Root for street content: east = +X, north = −Z, pavement at y = 0 |
-| `sp-chevrons` | Pink chevrons flowing along the route (`color`) |
-| `sp-guide` + `sp-arrow-mesh` | Floating arrow ahead of the user (`distance`, `drop`, `lookAhead`), adjusted to the phone's lens |
-| `sp-beacon` | Light pillar over the artwork, constant on-screen size; its look is the `<a-cylinder>`/`<a-sphere>` inside it |
-| `sp-label` | Canvas text panel (`accent`, `width`, `source: guide|dest|static`) |
-| `sp-party` | Arrival confetti around the `<a-torus>` frame |
-
-## Mural recognition (Zappar image targets)
-
-1. Take a straight-on, well-lit photo of the mural.
-2. Train it: `./scripts/train-target.sh photos/leake-street.jpg leake-street` (offline, writes `targets/leake-street.zpt`).
-3. Add `target: 'targets/leake-street.zpt',` to that spot in `js/spots.js`.
-4. Rebuild the zip and upload.
-
-When the user is navigating to that spot, the tracker is switched on. Pointing the camera at the mural shows a pink ring and
-"✓ name" label pinned to the wall, and counts as arriving. Street art gets repainted, so retrain when a piece changes.
+Next milestones, each only after the last one works on a phone:
+1. Zappar camera + one arrow (now)
+2. Route arrows on the pavement in AR, synced with the map's turn-by-turn
+3. Beacon over the artwork, arrival in AR
+4. Mural recognition (Zappar image targets)
 
 ## Files
 
 ```
-index.html                    Home screen (tours, map, spot list) and AR screen
-js/app.js                     UI, navigation (route steps, rerouting, arrival), voice guidance, demo walk
-js/ar-view.js                 A-Frame system, components and scene markup; Zappar camera and image tracking
-js/nav-core.js                Geo maths, OSRM routing, speech, compass
-js/spots.js                   The 13 spots and 3 walking tours, edit this to add art and targets
-targets/                      Zappar image targets (.zpt)
-vendor/zappar-aframe/         Zappar for A-Frame 4.0.0, bundled (script, workers, CV engine .wasm)
-tools/zappar-build/           webpack config + pinned versions used to build vendor/zappar-aframe
-scripts/build-zappar.sh       Rebuilds vendor/zappar-aframe from npm
-scripts/train-target.sh       Trains a mural photo into a .zpt
-scripts/package-zapworks.sh   Builds dist/spraypath-zapworks.zip for ZapWorks
+index.html          Map page
+ar.html             AR page (A-Frame scene with zappar-camera, zappar-permissions-ui, zappar-compatibility-ui)
+js/errors.js        On-screen error banner (phones have no console)
+js/spots.js         The 13 spots and 3 walking tours
+js/nav.js           Geo maths, OSRM walking routes, voice, compass
+js/map-app.js       Map page logic
+js/ar-app.js        AR components (sp-pointer, sp-arrow, sp-label) and the status panel
+vendor/             A-Frame 1.8.0, Zappar for A-Frame 4.0.0 (bundled), Leaflet 1.9.4
+tools/zappar-build  How vendor/zappar-aframe is built (scripts/build-zappar.sh)
+scripts/            package-zapworks.sh (zip for upload), train-target.sh (mural targets), build-zappar.sh
 ```
 
-Zappar doesn't publish a ready-to-use standalone build of version 4 on its CDN, so `vendor/zappar-aframe/` is bundled from npm with
-webpack, using A-Frame's own copy of three.js. You only need to rebuild it to upgrade Zappar (needs Node 18+).
+All scripts are plain `<script>` files: no modules and no build step for the app itself.
 
 ## Publish on ZapWorks
 
-1. Run `./scripts/package-zapworks.sh` (needs Python 3). It creates `dist/spraypath-zapworks.zip` with `index.html` at the root.
-2. In [zap.works](https://zap.works), open your Universal AR project and upload the zip on the **Experience** tab.
-3. Open the `*.zappar.io` link (or scan its QR code) on your phone.
+1. `./scripts/package-zapworks.sh` creates `dist/spraypath-zapworks.zip`.
+2. In [zap.works](https://zap.works), upload it on your project's **Experience** tab.
+3. Open the `*.zappar.io` link on your phone.
 
-Zappar's licence check passes automatically on ZapWorks hosting and on `localhost` for testing.
-Other hosts must be registered with Zappar first.
-
-## Run it locally
+## Test locally
 
 ```sh
 python3 -m http.server 8000
-# then open http://localhost:8000/?demo=1
+# map: http://localhost:8000/?demo=1      AR: http://localhost:8000/ar.html?spot=leake-street
 ```
 
-`?demo=1` simulates a walk from the nearest station, so you can try it anywhere (on a computer the view turns to face the walking
-direction). Other URL options: `?tour=shoreditch|southbank|camden` or `?spot=<id>` to jump straight into AR.
-For a phone, use ZapWorks, since phones need HTTPS for the camera, GPS and compass.
+## Credits
 
-## Data & credits
-
-- Walking routes: OSRM foot profile via the FOSSGIS server `routing.openstreetmap.de` (fair use; for heavy traffic run your own OSRM).
-- Map tiles and route data © OpenStreetMap contributors.
-- Built with [A-Frame](https://aframe.io) (MIT), [Zappar for A-Frame](https://github.com/zappar-xr/zappar-aframe) (MIT wrapper; Zappar's
-  computer-vision library requires an active ZapWorks subscription) and [Leaflet](https://leafletjs.com) (BSD-2).
-- Street art changes constantly. Coordinates point to the wall or street, and pieces may have been painted over.
+Map data © OpenStreetMap contributors. Walking routes: OSRM via FOSSGIS (`routing.openstreetmap.de`). Built with
+[A-Frame](https://aframe.io), [Zappar for A-Frame](https://github.com/zappar-xr/zappar-aframe) and [Leaflet](https://leafletjs.com).
+Street art changes constantly; spots point to the wall or street.
