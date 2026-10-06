@@ -72,7 +72,7 @@ async function startTrip(ids) {
 
   await compass.enable();               // iOS asks for motion access here (needs this tap)
   if (!view) {
-    view = new ARView({ canvas: $('ar-canvas'), video: $('ar-video'), overlay: $('ar'), compass });
+    view = new ARView({ container: $('ar'), video: $('ar-video'), compass });
     view.onXRChange = (on) => { $('btn-xr').textContent = on ? '📱 Exit floor lock' : '📍 Floor lock'; };
   }
   const cameraOk = await view.start();

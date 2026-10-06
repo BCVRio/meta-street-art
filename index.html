@@ -55,7 +55,12 @@
     #ar.no-camera { background: linear-gradient(#1c2333, #3a3f4a 55%, #22252b 55%, #15171b); }
     #ar-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     #ar.no-camera #ar-video { display: none; }
-    #ar-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #ar .sp-scene { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; }
+    #ar .sp-scene canvas { background: transparent; }
+    /* HUD layer above the 3D scene. Clicks pass through to the scene except on controls.
+       In floor-lock mode WebXR shows this element as its DOM overlay. */
+    #ar-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+    #ar-overlay #ar-top, #ar-overlay #card { pointer-events: auto; }
     .glass { background: rgba(0,0,0,.58); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
     #ar-top { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; gap: 8px; align-items: center; }
     #ar-title { flex: 1; min-width: 0; padding: 10px 14px; border-radius: 14px; }
@@ -78,9 +83,8 @@
     .btns button { padding: 10px 14px; border-radius: 999px; background: #222; border: 1px solid #333; font-size: 14px; }
     .btns button.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
   </style>
-  <script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.169.0/build/three.module.js" } }
-  </script>
+  <!-- A-Frame (bundles three.js). Must load before js/app.js registers the SprayPath components. -->
+  <script src="https://aframe.io/releases/1.8.0/aframe.min.js"></script>
 </head>
 <body>
 
@@ -114,7 +118,7 @@
     <b>Tips:</b> hold the phone upright. If the arrows point the wrong way, move the phone in a figure of eight to calibrate the compass.
     GPS is accurate to about 5–15 m between tall buildings. Look up from the screen when crossing roads.<br><br>
     Street art changes all the time, so a piece may have been painted over.
-    Routes © OpenStreetMap contributors (FOSSGIS routing). Built with three.js, free and open source.<br><br>
+    Routes © OpenStreetMap contributors (FOSSGIS routing). Built with A-Frame, free and open source.<br><br>
     <b>SprayPath is a BCVR Immersive experience.</b>
   </p>
 </main>
@@ -122,7 +126,8 @@
 <!-- ================= AR ================= -->
 <section id="ar" class="hidden">
   <video id="ar-video" autoplay playsinline muted></video>
-  <canvas id="ar-canvas"></canvas>
+  <!-- js/ar-view.js inserts the <a-scene> here -->
+  <div id="ar-overlay">
   <div id="ar-top">
     <div id="ar-title" class="glass"><span id="ar-target">–</span><span id="ar-stop"></span></div>
     <button class="round glass" id="btn-mute" title="Voice on/off">🔊</button>
@@ -142,6 +147,7 @@
       <button id="btn-xr" class="hidden">📍 Floor lock</button>
       <button id="btn-next" class="primary hidden">Next stop →</button>
     </div>
+  </div>
   </div>
 </section>
 
