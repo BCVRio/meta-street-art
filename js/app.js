@@ -64,21 +64,26 @@ const nav = { active: false, ready: false, queue: [], idx: 0, route: null, step:
 const currentSpot = () => spotById[nav.queue[nav.idx]];
 
 async function startTrip(ids) {
+  const why = ARView.incompatible();   // shows Zappar's "unsupported browser" screen if needed
+  if (why) { setStatus(why); return; }
   nav.active = true; nav.ready = false; nav.queue = ids; nav.idx = 0;
   $('home').classList.add('hidden');
   $('ar').classList.remove('hidden');
   $('card-instr').textContent = 'Starting camera…';
   say(ids.length > 1 ? `Starting a ${ids.length} stop street art walk.` : `Let's go to ${spotById[ids[0]].name}.`, { interrupt: true });
 
-  await compass.enable();               // iOS asks for motion access here (needs this tap)
   if (!view) {
-    view = new ARView({ container: $('ar'), video: $('ar-video'), compass });
-    view.onXRChange = (on) => { $('btn-xr').textContent = on ? '📱 Exit floor lock' : '📍 Floor lock'; };
+    view = new ARView({ container: $('ar'), compass });
+    view.onMural = (visible) => {
+      if (!visible || !nav.active) return;
+      showHint(`🎨 Recognised: ${currentSpot().name}`, 4000);
+      if (!nav.arrived) arrive(currentSpot());
+    };
   }
+  // Zappar asks for camera + motion access (needs this tap), then starts the camera.
   const cameraOk = await view.start();
-  $('ar').classList.toggle('no-camera', !cameraOk);
-  if (!cameraOk) showHint('Camera unavailable: showing directions without the camera view', 6000);
-  view.xrSupported().then((ok) => $('btn-xr').classList.toggle('hidden', !ok));
+  await compass.enable();
+  if (!cameraOk) showHint('Camera access is needed for AR. Directions still work below.', 6000);
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 
   if (opts.demo) {
@@ -102,6 +107,7 @@ function beginLeg() {
   view.celebrate(false);
   view.setRoute(null);
   view.setDestination(spot, spot.name);
+  view.setMuralTarget(spot.target || null, spot.name);   // Zappar image target, if this spot has one
   if (pos) reroute(true);
 }
 
@@ -236,11 +242,6 @@ $('btn-exit').onclick = endTrip;
 $('btn-mute').onclick = () => {
   opts.voice = !opts.voice; store.set('voice', opts.voice); syncSettings();
   if (!opts.voice) speaker.cancel();
-};
-$('btn-xr').onclick = async () => {
-  if (view.xr) { view.exitXR(); return; }
-  try { await view.enterXR(); showHint('Floor lock on: arrows now stay on the pavement', 4000); }
-  catch (e) { showHint(`Floor lock unavailable: ${e.message || e}`, 5000); }
 };
 
 // ---------- Home screen ----------

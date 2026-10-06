@@ -1,15 +1,15 @@
-// SprayPath AR, built on A-Frame.
+// SprayPath AR, built on A-Frame + Zappar for A-Frame (hosted on ZapWorks).
 //
-// Location-based AR: the camera's rotation comes from the phone's motion sensors (A-Frame
-// look-controls "magic window"), and the street content lives in the #sp-world entity, whose
-// local frame is east = +X, north = -Z, pavement at y = 0, origin at the first GPS fix.
-// Each frame the `spraypath` system
+// Location-based AR: Zappar's camera ("attitude" pose mode) shows the camera feed and turns the
+// phone's motion sensors into camera rotation, with the camera fixed at the origin. Street content
+// lives in the #sp-world entity, whose local frame is east = +X, north = -Z, pavement at y = 0,
+// origin at the first GPS fix. Each frame the `spraypath` system
 //   1. rotates #sp-world so its -Z axis lines up with true north (compass vs camera yaw), and
-//   2. slides it so the user's GPS position sits under the camera.
-// On Android phones with WebXR, "floor lock" switches A-Frame into AR mode so ARCore tracks the
-// camera and the arrows stay put on the pavement between GPS fixes.
+//   2. slides it so the user's GPS position sits under the camera (pavement EYE metres below).
+// When a spot has a Zappar image target (.zpt), Zappar image tracking recognises the mural and
+// pins a highlight to it.
 //
-// Requires A-Frame (global AFRAME) to be loaded before this module.
+// Requires A-Frame (global AFRAME) and vendor/zappar-aframe/zappar-aframe.js (global ZapparAFrame).
 import { toEN, rad } from './nav-core.js';
 
 const AFRAME = window.AFRAME;
@@ -17,6 +17,7 @@ const THREE = AFRAME.THREE;
 const UP = new THREE.Vector3(0, 1, 0);
 const PINK = new THREE.Color(0xff3d7f);
 const CHEVRON_SPACING = 2.5, CHEVRON_RANGE = 45, MAX_CHEVRONS = 24;
+const EYE = 1.5;                 // assumed phone height above the pavement, metres
 const BEACON_NEAR = 70;          // beacons further than this are drawn at this distance, scaled to match
 
 const angleDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -60,27 +61,18 @@ AFRAME.registerSystem('spraypath', {
     this.compass = null;
     this.northKnown = false;
     this.snap = true;            // jump (rather than glide) the world into place next frame
-    this.hasSensors = false;
     this.user = new THREE.Vector2();      // user's position in the world-local frame
     this.camPos = new THREE.Vector3();
     this.camFwd = new THREE.Vector3(0, 0, -1);  // camera's horizontal forward direction
     this.guideYaw = null;
+    this.viewScale = 1;          // >1 when the camera is more zoomed-in than a 63° view: HUD-like objects move further away to keep the same share of the screen
     this._dir = new THREE.Vector3();
     this._v = new THREE.Vector3();
-    this.look = { lastYaw: null, draggedAt: 0 };
 
-    addEventListener('deviceorientation', (e) => { if (e.alpha !== null) this.hasSensors = true; });
-    this.el.addEventListener('enter-vr', () => {
-      if (!this.el.is('ar-mode')) return;
-      this.snap = true; this.northKnown = false;
-      this.onXRChange?.(true);
-    });
-    this.el.addEventListener('exit-vr', () => { this.snap = true; this.northKnown = false; this.onXRChange?.(false); });
   },
 
-  // (Plain methods, not getters: A-Frame copies system definitions, which would evaluate getters early.)
-  isXR() { return this.el.is('ar-mode'); },
-  getCamera() { return this.isXR() ? this.el.renderer.xr.getCamera() : this.el.camera; },
+  // (Plain method, not a getter: A-Frame copies system definitions, which would evaluate getters early.)
+  getCamera() { return this.el.camera; },
 
   // ----- Inputs from the app -----
   setPosition(p) {
@@ -108,6 +100,21 @@ AFRAME.registerSystem('spraypath', {
   setLabel(line1, line2) { this.label = [line1, line2]; },
   setFacingHint(deg) { this.facingHint = deg; },
   celebrate(on) { this.celebrating = on; this.el.emit('sp-celebrate', { on }); },
+
+  // Zappar image tracking for the current spot's mural (null to switch off).
+  setMuralTarget(url, name = '') {
+    this.muralEl?.parentNode?.removeChild(this.muralEl);
+    this.muralEl = null;
+    if (!url) return;
+    const el = document.createElement('a-entity');
+    el.setAttribute('zappar-image', { target: url });
+    el.innerHTML = MURAL_HTML;
+    el.querySelector('[sp-label]')?.setAttribute('sp-label', { source: 'static', text: `✓ ${name}`, sub: 'Mural recognised' });
+    el.addEventListener('zappar-visible', () => this.el.emit('sp-mural', { visible: true }));
+    el.addEventListener('zappar-notvisible', () => this.el.emit('sp-mural', { visible: false }));
+    this.el.appendChild(el);
+    this.muralEl = el;
+  },
 
   showNav() { return !this.celebrating && !!this.gps && !!this.origin; },
 
@@ -146,10 +153,13 @@ AFRAME.registerSystem('spraypath', {
     const world = this.worldEl?.object3D;
     if (!world) return;
     const cam = this.getCamera();
-    if (!this.isXR()) this.steerWithoutSensors();
     this.updateNorth(cam, world);
     this.updateAnchor(cam, world);
 
+    // Zappar sets the projection from the real camera's lens. Measure it so the guide arrow keeps the
+    // same on-screen size and position on every phone.
+    const fovY = 2 * Math.atan(1 / cam.projectionMatrix.elements[5]);
+    if (Number.isFinite(fovY) && fovY > 0.1) this.viewScale = Math.min(2.5, Math.max(0.6, Math.tan(rad(31.5)) / Math.tan(fovY / 2)));
     cam.getWorldPosition(this.camPos);
     const local = world.worldToLocal(this._v.copy(this.camPos));
     this.user.set(local.x, local.z);
@@ -157,25 +167,14 @@ AFRAME.registerSystem('spraypath', {
     if (f.lengthSq() > 1e-4) this.camFwd.copy(f.normalize());
   },
 
-  // Desktop / no motion sensors: face the walking direction unless the user dragged recently.
-  steerWithoutSensors() {
-    if (this.hasSensors) return;
-    const lc = this.el.camera?.el?.components['look-controls'];
-    if (!lc?.yawObject) return;
-    const yawObj = lc.yawObject;
-    if (this.look.lastYaw !== null && Math.abs(yawObj.rotation.y - this.look.lastYaw) > 1e-4) this.look.draggedAt = performance.now();
-    if (this.look.lastYaw === null) lc.pitchObject.rotation.x = -0.18;
-    if (this.facingHint !== null && performance.now() - this.look.draggedAt > 4000) {
-      const target = this.worldEl.object3D.rotation.y - rad(this.facingHint);
-      yawObj.rotation.y += angleDiff(target, yawObj.rotation.y) * 0.08;
-    }
-    this.look.lastYaw = yawObj.rotation.y;
-  },
-
   // Rotate the world so its -Z axis points at true north.
   updateNorth(cam, world) {
     const H = this.compass?.get();
-    if (H === null || H === undefined) return;
+    if (H === null || H === undefined) {
+      // No compass (e.g. desktop testing): turn the world so the walking direction is straight ahead.
+      if (this.facingHint !== null) world.rotation.y += angleDiff(rad(this.facingHint), world.rotation.y) * 0.08;
+      return;
+    }
     const d = cam.getWorldDirection(this._dir);
     if (Math.abs(d.y) > 0.85) return;                    // looking at the ground/sky: yaw unreliable
     const target = Math.atan2(-d.x, -d.z) + rad(H);
@@ -189,10 +188,9 @@ AFRAME.registerSystem('spraypath', {
     const { e, n } = toEN(this.gps, this.origin);
     const v = this._v.set(e, 0, -n).applyAxisAngle(UP, world.rotation.y);
     const p = cam.getWorldPosition(new THREE.Vector3());
-    const target = new THREE.Vector3(p.x - v.x, 0, p.z - v.z);
+    const target = new THREE.Vector3(p.x - v.x, p.y - EYE, p.z - v.z);
     if (this.snap) { world.position.copy(target); this.snap = false; }
-    // In floor-lock mode ARCore tracking is smoother than GPS, so only drift slowly towards GPS.
-    else world.position.lerp(target, this.isXR() ? 0.01 : 0.08);
+    else world.position.lerp(target, 0.08);
   },
 });
 
@@ -205,7 +203,8 @@ AFRAME.registerComponent('sp-world', {
 
 // Canvas text panel (sprite). Usage: sp-label="accent: #3dd6ff; width: 5; source: dest"
 AFRAME.registerComponent('sp-label', {
-  schema: { accent: { default: '#ff3d7f' }, width: { default: 1.5 }, source: { default: 'guide', oneOf: ['guide', 'dest'] } },
+  schema: { accent: { default: '#ff3d7f' }, width: { default: 1.5 }, source: { default: 'guide', oneOf: ['guide', 'dest', 'static'] },
+            text: { default: '' }, sub: { default: '' } },
   init() {
     const c = this.canvas = document.createElement('canvas');
     c.width = 1024; c.height = 256;
@@ -236,7 +235,8 @@ AFRAME.registerComponent('sp-label', {
   },
   tick() {
     const sys = this.el.sceneEl.systems.spraypath;
-    if (this.data.source === 'guide') this.draw(sys.label[0], sys.label[1]);
+    if (this.data.source === 'static') this.draw(this.data.text, this.data.sub);
+    else if (this.data.source === 'guide') this.draw(sys.label[0], sys.label[1]);
     else if (sys.dest) {
       const d = Math.hypot(sys.dest.x - sys.user.x, sys.dest.y - sys.user.y);
       this.draw(sys.destName || 'Street art', d < 1000 ? `${Math.round(d / 5) * 5} m` : `${(d / 1000).toFixed(1)} km`);
@@ -304,8 +304,8 @@ AFRAME.registerComponent('sp-guide', {
     else { tx = sys.dest.x; ty = sys.dest.y; }
     const yaw = Math.atan2(-(tx - sys.user.x), -(ty - sys.user.y)) + sys.worldEl.object3D.rotation.y;
     sys.guideYaw = sys.guideYaw === null ? yaw : sys.guideYaw + angleDiff(yaw, sys.guideYaw) * 0.15;
-    const { camPos, camFwd } = sys, d = this.data.distance;
-    o.position.set(camPos.x + camFwd.x * d, camPos.y - this.data.drop + Math.sin(time / 1000 * 2.2) * 0.05, camPos.z + camFwd.z * d);
+    const { camPos, camFwd } = sys, k = sys.viewScale, d = this.data.distance * k;
+    o.position.set(camPos.x + camFwd.x * d, camPos.y - (this.data.drop + Math.sin(time / 1000 * 2.2) * 0.05) * k, camPos.z + camFwd.z * d);
     o.rotation.set(0, sys.guideYaw, 0);
   },
 });
@@ -350,7 +350,8 @@ AFRAME.registerComponent('sp-party', {
   tick(time) {
     if (!this.el.object3D.visible) return;
     const sys = this.el.sceneEl.systems.spraypath, o = this.el.object3D;
-    o.position.set(sys.camPos.x + sys.camFwd.x * 3, sys.camPos.y - 0.2, sys.camPos.z + sys.camFwd.z * 3);
+    const k = sys.viewScale;
+    o.position.set(sys.camPos.x + sys.camFwd.x * 3 * k, sys.camPos.y - 0.2 * k, sys.camPos.z + sys.camFwd.z * 3 * k);
     const frame = this.el.querySelector('.sp-frame');
     if (frame) frame.object3D.rotation.y = time / 1000 * 1.2;
     for (const p of this.bits) {
@@ -362,31 +363,17 @@ AFRAME.registerComponent('sp-party', {
   },
 });
 
-// Sets the camera's field of view to roughly match a phone's main camera shown full-screen.
-AFRAME.registerComponent('sp-camera-fov', {
-  init() {
-    this.onResize = () => {
-      if (this.el.sceneEl.is('ar-mode')) return;
-      this.el.setAttribute('camera', 'fov', innerHeight >= innerWidth ? 63 : 42);
-    };
-    addEventListener('resize', this.onResize);
-    this.onResize();
-  },
-  remove() { removeEventListener('resize', this.onResize); },
-});
-
 // ---------- Scene markup ----------
-// Edit the look of the beacon, arrow and celebration here.
+// Edit the look of the beacon, arrow, celebration and mural highlight here.
 const SCENE_HTML = `
 <a-scene embedded class="sp-scene" spraypath
-  renderer="alpha: true; antialias: true; colorManagement: true"
-  xr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" loading-screen="enabled: false"
-  webxr="requiredFeatures: local-floor; optionalFeatures: dom-overlay; overlayElement: #ar-overlay">
+  renderer="antialias: true; colorManagement: true"
+  xr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" loading-screen="enabled: false">
   <a-entity light="type: hemisphere; color: #ffffff; groundColor: #444466; intensity: 2.2"></a-entity>
   <a-entity light="type: directional; color: #ffffff; intensity: 1.4" position="2 5 3"></a-entity>
 
-  <a-entity id="sp-camera" camera="near: 0.05; far: 800" sp-camera-fov
-    look-controls="touchEnabled: false; magicWindowTrackingEnabled: true" position="0 1.6 0"></a-entity>
+  <!-- Zappar camera: camera feed as background, rotation from the phone's motion sensors. -->
+  <a-entity id="sp-camera" camera="near: 0.05; far: 800" zappar-camera="pose-mode: attitude"></a-entity>
 
   <a-entity id="sp-world" sp-world>
     <a-entity sp-chevrons="color: #ff3d7f"></a-entity>
@@ -409,54 +396,58 @@ const SCENE_HTML = `
   </a-entity>
 </a-scene>`;
 
+// Content pinned to a recognised mural (Zappar image space: y = -1..1 is the bottom..top of the image).
+const MURAL_HTML = `
+  <a-ring radius-inner="1.08" radius-outer="1.16" segments-theta="64"
+    material="shader: flat; color: #ff3d7f; opacity: 0.9; transparent: true; side: double"
+    animation="property: scale; from: 1 1 1; to: 1.06 1.06 1; dir: alternate; loop: true; dur: 700; easing: easeInOutSine"></a-ring>
+  <a-entity sp-label="accent: #4dff9a; width: 1.8; source: static" position="0 1.45 0.05"></a-entity>`;
+
 // ---------- Wrapper used by app.js ----------
 export class ARView {
-  constructor({ container, video, compass }) {
-    this.video = video;
-    video.insertAdjacentHTML('afterend', SCENE_HTML);   // scene draws over the camera feed
+  constructor({ container, compass }) {
+    container.insertAdjacentHTML('afterbegin', SCENE_HTML);
     this.sceneEl = container.querySelector('a-scene');
     this.ready = new Promise((resolve) => {
       if (this.sceneEl.hasLoaded) resolve(); else this.sceneEl.addEventListener('loaded', resolve, { once: true });
     }).then(() => {
       this.sys = this.sceneEl.systems.spraypath;
       this.sys.compass = compass;
-      this.sys.onXRChange = (on) => {
-        this.video.style.visibility = on ? 'hidden' : '';
-        this.onXRChange?.(on);
-      };
+      this.sceneEl.addEventListener('sp-mural', (e) => this.onMural?.(e.detail.visible));
     });
   }
 
+  static zappar() { return window.ZapparAFrame?.ZapparThreeForAFrame; }
+  static incompatible() {
+    const Z = ARView.zappar();
+    if (!Z) return 'Zappar library failed to load';
+    if (Z.browserIncompatible()) { Z.browserIncompatibleUI(); return 'This browser is not supported'; }
+    return null;
+  }
+
+  // Must run from a tap: asks for camera + motion permission, then starts the Zappar camera.
   async start() {
     await this.ready;
     this.sceneEl.play();
-    try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-      this.video.srcObject = this.stream;
-      await this.video.play().catch(() => {});
-      return true;
-    } catch { return false; }
+    const Z = ARView.zappar();
+    const cam = this.sceneEl.systems['zappar-camera'];
+    if (!cam.permissionGranted) cam.permissionGranted = await Z.permissionRequest();
+    if (!cam.permissionGranted) { Z.permissionDeniedUI(); return false; }
+    cam.camera.start(false);           // rear camera
+    return true;
   }
   stop() {
-    this.stream?.getTracks().forEach((t) => t.stop());
-    this.stream = null;
-    if (this.sceneEl.is('ar-mode')) this.sceneEl.exitVR();
+    this.sceneEl.systems['zappar-camera']?.camera.stop();
+    this.sys?.setMuralTarget(null);
     this.sceneEl.pause();
   }
-
-  get xr() { return this.sceneEl.is('ar-mode'); }
-  async xrSupported() {
-    try { return !!navigator.xr && await navigator.xr.isSessionSupported('immersive-ar'); } catch { return false; }
-  }
-  enterXR() { return this.sceneEl.enterAR(); }
-  exitXR() { return this.sceneEl.exitVR(); }
 
   setPosition(p) { this.sys?.setPosition(p); }
   setRoute(r) { this.sys?.setRoute(r); }
   setDestination(p, name) { this.sys?.setDestination(p, name); }
   setLabel(a, b) { this.sys?.setLabel(a, b); }
   setFacingHint(h) { this.sys?.setFacingHint(h); }
+  setMuralTarget(url, name) { this.sys?.setMuralTarget(url, name); }
   celebrate(on) { this.sys?.celebrate(on); }
   relativeGuideAngle() { return this.sys?.relativeGuideAngle() ?? null; }
 }

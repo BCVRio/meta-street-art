@@ -1,0 +1,16 @@
+{
+  "name": "spraypath-zappar-build",
+  "private": true,
+  "description": "Bundles Zappar for A-Frame into vendor/zappar-aframe/ and trains image targets (Zappar does not host a standalone 4.x build).",
+  "scripts": {
+    "build": "webpack --config webpack.config.cjs"
+  },
+  "dependencies": {
+    "@zappar/zappar-aframe": "4.0.0",
+    "@zappar/imagetraining": "4.3.2"
+  },
+  "devDependencies": {
+    "webpack": "^5.97.0",
+    "webpack-cli": "^5.1.4"
+  }
+}
