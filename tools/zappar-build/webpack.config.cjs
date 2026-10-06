@@ -20,5 +20,9 @@ module.exports = {
       { test: /\.m?js$/, resolve: { fullySpecified: false } },
     ],
   },
+  // Keep each Zappar worker in one file (no further chunk loading), so js/worker-shim.js can start it
+  // from a blob: URL. ZapWorks serves pages cross-origin isolated (COEP: require-corp), which blocks
+  // worker scripts that lack their own COEP header; blob workers inherit the page's policy instead.
+  optimization: { splitChunks: false },
   performance: { hints: false },
 };

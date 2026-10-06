@@ -159,7 +159,10 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     $('compass-btn').onclick = hookCompass;
-    $('status-toggle').onclick = function () { $('status').classList.toggle('collapsed'); };
+    $('status-toggle').onclick = function () {
+      var c = $('status').classList.toggle('collapsed');
+      $('status-toggle').textContent = c ? 'Show' : 'Hide';
+    };
     $('back').href = 'index.html' + (params.has('demo') ? '?demo=1' : '');
     var cam = document.getElementById('cam');
     if (cam) cam.addEventListener('first-frame', function () { state.firstFrame = true; });

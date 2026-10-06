@@ -20,6 +20,9 @@
     maxZoom: 19, className: 'dark-tiles',
     // OpenStreetMap asks for a Referer; some hosts send none by default, which gets tiles refused.
     referrerPolicy: 'strict-origin-when-cross-origin',
+    // ZapWorks pages are cross-origin isolated (COEP: require-corp): images from other sites only load
+    // as CORS requests. OSM tile servers allow that (Access-Control-Allow-Origin: *).
+    crossOrigin: 'anonymous',
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   };
   var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileOpts).addTo(map);
