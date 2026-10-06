@@ -176,12 +176,16 @@
   AFRAME.registerComponent('sp-arrow', {
     schema: { color: { type: 'color', default: '#ff3d7f' } },
     init: function () {
-      this.el.setObject3D('mesh', new THREE.Mesh(arrowGeometry(), new THREE.MeshStandardMaterial({
-        color: this.data.color, emissive: this.data.color, emissiveIntensity: 0.5, roughness: 0.4 })));
+      // Tip raised ~35° towards you, so the arrow reads as an arrow rather than a thin bar seen edge-on.
+      var mesh = new THREE.Mesh(arrowGeometry(), new THREE.MeshStandardMaterial({
+        color: this.data.color, emissive: this.data.color, emissiveIntensity: 0.5, roughness: 0.4 }));
+      mesh.rotation.x = 0.6;
+      var tilt = new THREE.Group(); tilt.add(mesh);
+      this.el.setObject3D('mesh', tilt);
     },
   });
 
-  // Canvas text panel that always faces the camera.
+  // Canvas text panel that always faces the camera (available for in-scene labels, e.g. the arrival beacon).
   AFRAME.registerComponent('sp-label', {
     schema: { width: { default: 1.6 } },
     init: function () {
@@ -290,7 +294,7 @@
     },
   });
 
-  // Pink arrow ~4 m ahead of the camera, just below eye level, pointing along the route (or at the spot with no route).
+  // Pink arrow ~4 m ahead along the camera's view, pointing along the route (or at the spot with no route).
   AFRAME.registerComponent('sp-pointer', {
     init: function () { this.dir = new THREE.Vector3(); this.p = new THREE.Vector3(); this.yaw = null; },
     tick: function (t) {
@@ -301,15 +305,15 @@
 
       cam.getWorldPosition(this.p);
       cam.getWorldDirection(this.dir);
+      // Sit 4 m along where the camera points, a little below the centre of the view (and never below the
+      // pavement), so the arrow stays on screen whether the phone is held level or tilted down.
+      var py = this.p.y + this.dir.y * 4 - 0.45 + Math.sin(t / 450) * 0.04;
+      o.position.set(this.p.x + this.dir.x * 4, Math.max(py, this.p.y - EYE + 0.4), this.p.z + this.dir.z * 4);
       this.dir.y = 0;
       if (this.dir.lengthSq() < 1e-4) this.dir.set(0, 0, -1); else this.dir.normalize();
       var camYaw = Math.atan2(-this.dir.x, -this.dir.z);
-      o.position.set(this.p.x + this.dir.x * 4, this.p.y - 0.25 + Math.sin(t / 450) * 0.04, this.p.z + this.dir.z * 4);   // above the dot trail
 
-      var label = this.el.querySelector('[sp-label]').components['sp-label'];
       var arrow = this.el.querySelector('[sp-arrow]').object3D;
-      var txt = labelText();
-      label.set(txt[0], txt[1]);
       var worldEl = sceneEl.querySelector('[sp-world]');
       if (!state.pos || !state.target || !state.headingSrc || state.arrived || !nav.origin) { arrow.visible = false; state.rel = null; return; }
 
@@ -345,9 +349,13 @@
       state.pos ? (state.pos.demo ? 'demo walk' : '±' + Math.round(state.pos.acc) + ' m') : state.gpsErr ? state.gpsErr : 'waiting');
     row('st-route', nav.route ? true : null, state.arrived ? 'arrived' : state.routeMsg);
     row('st-target', state.target && state.pos ? true : null, state.target ? state.target.name + (state.pos ? ' · ' + N.fmtDist(N.dist(state.pos, state.target)) : '') : 'nearest spot');
+    var txt = labelText();
+    if ($('instr-1').textContent !== txt[0]) $('instr-1').textContent = txt[0];
+    if ($('instr-2').textContent !== txt[1]) $('instr-2').textContent = txt[1];
     $('arrow2d').style.transform = 'rotate(' + (state.rel || 0) + 'deg)';
     $('arrow2d').style.opacity = state.rel === null ? 0.25 : 1;
-    $('compass-btn').classList.toggle('hidden', state.orientEvents > 0 || demo);
+    $('compass-btn').classList.toggle('hidden', state.orientEvents > 0);
+    $('compass-hint').classList.toggle('hidden', state.orientEvents > 0 || !$('status').classList.contains('collapsed'));
     $('story').classList.toggle('hidden', !state.arrived);
     if (state.arrived && state.target) $('story').textContent = state.target.blurb;
   }
@@ -356,6 +364,12 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     $('compass-btn').onclick = hookCompass;
+    $('compass-hint').onclick = hookCompass;
+    // iOS (and Zappar's App Clip) only give compass readings after a tap: ask on the first tap anywhere.
+    document.addEventListener('click', function once() {
+      if (state.orientEvents === 0) hookCompass();
+      if (state.orientEvents > 0) document.removeEventListener('click', once);
+    });
     $('status-toggle').onclick = function () {
       var c = $('status').classList.toggle('collapsed');
       $('status-toggle').textContent = c ? 'Show' : 'Hide';
