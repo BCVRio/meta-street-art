@@ -144,7 +144,8 @@
   }
 
   // Which ZapWorks version this is (the number in the URL), to check a phone has the latest upload.
-  var ver = location.pathname.match(/\/(\d+)\//);
+  // (URLs look like /<project id>/<version>/index.html, so take the short number after the long project id.)
+  var ver = location.pathname.match(/\/\d{6,}\/(\d{1,5})\//);
   root.querySelector('.splash-ver').textContent = ver ? 'v' + ver[1] : 'dev';
   function watchZapWorks() {
     var zw = document.querySelector('[class^="zws0-"]');
