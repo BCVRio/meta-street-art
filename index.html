@@ -92,6 +92,15 @@
     #top { position: fixed; z-index: 1000; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top));
       display: flex; gap: 8px; align-items: center; pointer-events: none; }
     #top > * { pointer-events: auto; }
+    #brand #city-btn { display: block; margin-top: 6px; padding: 4px 10px; font-size: 13px; }
+    #city-picker { position: fixed; z-index: 2500; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); bottom: calc(12px + env(safe-area-inset-bottom));
+      border-radius: 18px; padding: 12px; display: flex; flex-direction: column; }
+    #city-picker header { display: flex; gap: 8px; }
+    #city-search { flex: 1; font: inherit; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
+    #city-list { overflow-y: auto; margin-top: 10px; display: grid; gap: 6px; }
+    #city-list button { text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
+    #city-list button b { display: block; } #city-list button small { color: var(--muted); }
+    .tour.more { text-align: center; color: var(--accent); font-weight: 600; }
     .glass { background: rgba(14,14,20,.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); }
     #brand { padding: 8px 14px; border-radius: 14px; flex: 1; min-width: 0; }
     #brand small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 2.5px; color: var(--accent-2); }
@@ -99,7 +108,7 @@
     #brand b span { color: var(--accent); }
     .round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; flex: none; }
     .round[aria-pressed="true"] { border-color: var(--accent); }
-    #gps-chip { position: fixed; z-index: 1000; left: 12px; top: calc(74px + env(safe-area-inset-top)); padding: 5px 10px;
+    #gps-chip { position: fixed; z-index: 1000; left: 12px; top: calc(112px + env(safe-area-inset-top)); padding: 5px 10px;
       border-radius: 999px; font-size: 12px; color: var(--muted); }
 
     /* Bottom sheet */
@@ -178,19 +187,24 @@
 <div id="map"></div>
 
 <div id="top">
-  <div id="brand" class="glass"><small>BCVR IMMERSIVE</small><b>Spray<span>Path</span></b></div>
+  <div id="brand" class="glass"><small>BCVR IMMERSIVE</small><b>Spray<span>Path</span></b><button id="city-btn" class="chip">London ▾</button></div>
   <button id="btn-locate" class="round glass" title="Centre on me" aria-label="Centre on me">◎</button>
 </div>
 <div id="gps-chip" class="glass">Finding your location…</div>
+
+<section id="city-picker" class="glass hidden" aria-label="Choose a city">
+  <header><input id="city-search" type="search" placeholder="Search cities…" autocomplete="off"><button id="city-close" class="chip">Close</button></header>
+  <div id="city-list"></div>
+</section>
 
 <section id="sheet" class="glass">
   <div class="grab"></div>
 
   <!-- Browse -->
   <div id="browse">
-    <h2>Walking tours</h2>
+    <h2 id="tours-h">Walking tours</h2>
     <div class="tours" id="tours"></div>
-    <h2>Nearest street art</h2>
+    <h2 id="spots-h">Nearest street art</h2>
     <div id="spots"></div>
     <div class="settings">
       <button class="chip" id="opt-voice" aria-pressed="true">🔊 Voice directions</button>
@@ -220,7 +234,7 @@
 </section>
 
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="js/spots.js"></script>
+<script src="js/data.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/map-app.js"></script>
 <script src="js/splash.js"></script>

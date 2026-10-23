@@ -11,7 +11,7 @@
   <script src="vendor/aframe/aframe-1.8.0.min.js"></script>
   <script src="js/worker-shim.js"></script>
   <script src="vendor/zappar-aframe/zappar-aframe.js"></script>
-  <script src="js/spots.js"></script>
+  <script src="js/data.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/ar-app.js"></script>
   <style>
@@ -32,7 +32,14 @@
     #status h1 small { display: block; font-weight: 400; color: #a0a0ae; font-size: 12px; }
     #status-toggle { background: none; border: 1px solid #2a2a35; color: #fff; border-radius: 999px; padding: 6px 10px; font: inherit; font-size: 12px; }
     #status ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
-    #status.collapsed ul, #status.collapsed #compass-btn { display: none; }
+    #status.collapsed ul, #status.collapsed #compass-btn, #status.collapsed .st-actions, #status.collapsed h1 small { display: none; }
+    #status.collapsed { padding: 6px 8px 6px 10px; left: 50%; right: auto; transform: translateX(-50%); border-radius: 999px; min-width: 60%; }
+    #status.collapsed #arrow2d { width: 32px; height: 32px; }
+    #status.collapsed #arrow2d svg { width: 20px; height: 20px; }
+    #status.collapsed h1 { font-size: 14px; white-space: nowrap; }
+    #status.collapsed header { gap: 10px; }
+    .st-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .st-actions button { flex: 1; padding: 9px; border-radius: 12px; border: 1px solid #2a2a35; background: none; color: #fff; font: inherit; font-size: 13px; }
     #status li { display: flex; gap: 8px; font-size: 13px; }
     #status li .k { width: 74px; color: #a0a0ae; flex: none; }
     #status li .v { flex: 1; min-width: 0; word-break: break-word; }
@@ -44,9 +51,9 @@
     #instr b { display: block; font-size: 20px; line-height: 1.2; }
     #instr span { display: block; color: #c9c9d4; font-size: 14px; margin-top: 2px; }
     #compass-hint { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); white-space: nowrap;
-      bottom: calc(158px + env(safe-area-inset-bottom)); padding: 10px 16px;
+      bottom: calc(76px + env(safe-area-inset-bottom)); padding: 10px 16px;
       border-radius: 999px; color: #fff; font: inherit; font-weight: 600; background: rgba(61,214,255,.25); border-color: #3dd6ff; }
-    #demo-badge { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: calc(108px + env(safe-area-inset-bottom)); padding: 6px 8px 6px 12px;
+    #demo-badge { position: fixed; z-index: 20; left: 12px; right: 12px; top: calc(150px + env(safe-area-inset-top)); padding: 6px 8px 6px 12px;
       border-radius: 12px; font-size: 12px; color: #ffcf73; border-color: #ffcf73; display: flex; gap: 10px; align-items: center; }
     #demo-badge button { flex: none; margin-left: auto; border: 0; border-radius: 999px; padding: 6px 10px; background: #ffcf73; color: #000;
       font: inherit; font-weight: 700; }
@@ -59,12 +66,14 @@
 
 <!-- Set up as in Zappar's A-Frame documentation. -->
 <a-scene xr-mode-ui="enabled: false" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false"
-         renderer="colorManagement: true">
+         renderer="colorManagement: true; maxCanvasWidth: 1440; maxCanvasHeight: 1440">
   <a-entity zappar-permissions-ui id="permissions"></a-entity>
   <a-entity zappar-compatibility-ui id="compatibility"></a-entity>
 
-  <!-- Camera feed + rotation from the phone's motion sensors. -->
+  <!-- Camera feed + pose. js/ar-app.js sets pose-mode: 'anchor-origin' with the instant-tracking anchor below
+       (world tracking: the camera moves through the scene as you walk) or 'attitude' (rotation only). -->
   <a-entity id="cam" camera zappar-camera="pose-mode: attitude"></a-entity>
+  <a-entity id="anchor" zappar-instant="placement-mode: false; enabled: true"></a-entity>
 
   <a-entity light="type: hemisphere; color: #ffffff; groundColor: #444466; intensity: 2.2"></a-entity>
   <a-entity light="type: directional; intensity: 1.4" position="2 5 3"></a-entity>
@@ -98,11 +107,13 @@
     <li id="st-motion"><span class="k">Motion</span><span class="v">…</span></li>
     <li id="st-compass"><span class="k">Compass</span><span class="v">…</span></li>
     <li id="st-gps"><span class="k">GPS</span><span class="v">…</span></li>
+    <li id="st-track"><span class="k">Tracking</span><span class="v">…</span></li>
     <li id="st-route"><span class="k">Route</span><span class="v">…</span></li>
     <li id="st-target"><span class="k">Target</span><span class="v">…</span></li>
   </ul>
   <p id="story" class="hidden"></p>
   <button id="compass-btn" class="hidden">Enable compass</button>
+  <div class="st-actions"><button id="track-reset">Reset tracking</button><button id="track-mode">Switch tracking</button></div>
 </section>
 </body>
 </html>

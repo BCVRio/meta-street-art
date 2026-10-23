@@ -1,11 +1,14 @@
 // SprayPath map page: OpenStreetMap + GPS + turn-by-turn walking directions (OSRM).
-(function () {
+// Runs once js/data.js has loaded the chosen city's spots and tours (see DATA.ready).
+window.DATA.ready(function () {
   'use strict';
-  var N = window.NAV;
+  var N = window.NAV, DATA = window.DATA;
   var $ = function (id) { return document.getElementById(id); };
   var spotById = {};
-  window.SPOTS.forEach(function (s) { spotById[s.id] = s; });
+  function indexSpots() { spotById = {}; window.SPOTS.forEach(function (s) { spotById[s.id] = s; }); }
+  indexSpots();
   var params = new URLSearchParams(location.search);
+  var userPickedCity = params.has('city');
 
   // ---------- Settings & saved trip (best effort) ----------
   function load(k, d) { try { var v = localStorage.getItem('spraypath.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
@@ -41,18 +44,61 @@
     }
   });
 
-  var spotMarkers = {};
-  window.SPOTS.forEach(function (s) {
-    var m = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: '<div class="spot-pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(map);
-    var el = document.createElement('div');
-    el.innerHTML = '<b></b><small></small><div class="pbtns"><button class="primary">Directions</button><a>📷 AR</a></div>';
-    el.querySelector('b').textContent = s.name;
-    el.querySelector('small').textContent = s.area;
-    el.querySelector('button').onclick = function () { map.closePopup(); startTrip([s.id]); };
-    el.querySelector('a').onclick = function () { el.querySelector('a').href = arLink(s.id); };
-    m.bindPopup(el);
-    spotMarkers[s.id] = m;
-  });
+  var spotMarkers = {}, markerLayer = L.layerGroup().addTo(map);
+  function renderMarkers() {
+    markerLayer.clearLayers(); spotMarkers = {};
+    window.SPOTS.forEach(function (s) {
+      var m = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: '<div class="spot-pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(markerLayer);
+      var el = document.createElement('div');
+      el.innerHTML = '<b></b><small></small><div class="pbtns"><button class="primary">Directions</button><a>📷 AR</a></div>';
+      el.querySelector('b').textContent = s.name;
+      el.querySelector('small').textContent = s.area;
+      el.querySelector('button').onclick = function () { map.closePopup(); startTrip([s.id]); };
+      el.querySelector('a').onclick = function () { el.querySelector('a').href = arLink(s.id); };
+      m.bindPopup(el);
+      spotMarkers[s.id] = m;
+    });
+  }
+  renderMarkers();
+
+  // ---------- Cities ----------
+  // One city is loaded at a time. On the first real GPS fix we switch to the nearest city with data
+  // (unless you picked one or a walk is under way); the city button opens a searchable list.
+  function cityLabel() { var c = DATA.current(); $('city-btn').textContent = (c ? c.name : 'London') + ' ▾'; }
+  function switchCity(id, fly) {
+    if (trip.active) endTrip();
+    return DATA.load(id).then(function (c) {
+      indexSpots(); renderMarkers(); renderTours(); renderSpots(true); cityLabel();
+      if (fly) { centredOnce = true; followPausedUntil = Date.now() + 20000; map.setView([c.lat, c.lng], 13); }
+      setGps(c.name + ' · ' + c.spots + ' spots · ' + c.tours + ' tours');
+      return c;
+    });
+  }
+  function maybeSwitchCity() {
+    if (!pos || opts.demo || userPickedCity || trip.active || maybeSwitchCity.done) return;
+    maybeSwitchCity.done = true;
+    var near = DATA.nearestCity(pos), cur = DATA.current();
+    if (near && cur && near.id !== cur.id && DATA.dist(pos, near) < 60000 && DATA.dist(pos, near) < DATA.dist(pos, cur)) switchCity(near.id, false);
+  }
+  function renderCityList(q) {
+    var list = DATA.all().slice(), ref = pos || DATA.current();
+    q = (q || '').trim().toLowerCase();
+    if (q) list = list.filter(function (c) { return (c.name + ' ' + c.country).toLowerCase().indexOf(q) >= 0; });
+    else if (ref) list.sort(function (a, b) { return DATA.dist(ref, a) - DATA.dist(ref, b); });
+    $('city-list').innerHTML = '';
+    list.slice(0, 60).forEach(function (c) {
+      var b = document.createElement('button');
+      b.innerHTML = '<b></b><small></small>';
+      b.querySelector('b').textContent = c.name + (c.country ? ', ' + c.country : '');
+      b.querySelector('small').textContent = c.spots + ' spots · ' + c.tours + ' tours' + (ref ? ' · ' + N.fmtDist(DATA.dist(ref, c)) + ' away' : '');
+      b.onclick = function () { userPickedCity = true; $('city-picker').classList.add('hidden'); switchCity(c.id, true); };
+      $('city-list').appendChild(b);
+    });
+    if (!list.length) $('city-list').innerHTML = '<p class="credit">No city found. Street art is added from OpenStreetMap: map some in your city and it will appear here.</p>';
+  }
+  $('city-btn').onclick = function () { $('city-picker').classList.remove('hidden'); $('city-search').value = ''; renderCityList(''); $('city-search').focus(); };
+  $('city-close').onclick = function () { $('city-picker').classList.add('hidden'); };
+  $('city-search').oninput = function () { renderCityList($('city-search').value); };
 
   var you = null, youAcc = null, routeLine = null, routeCasing = null;
   var follow = true, followPausedUntil = 0, centredOnce = false;
@@ -85,7 +131,7 @@
   // ---------- Position: GPS or demo walk ----------
   var pos = null, watchId = null;
   function setGps(t) { $('gps-chip').textContent = t; }
-  function emit(p) { pos = p; drawYou(); onPosition(); }
+  function emit(p) { pos = p; drawYou(); onPosition(); maybeSwitchCity(); }
   function startGPS() {
     if (watchId !== null) return;
     if (!('geolocation' in navigator)) { setGps('No GPS on this device: try Demo walk'); return; }
@@ -117,7 +163,7 @@
   var trip = { active: false, queue: [], idx: 0, route: null, step: 1, announced: {}, arrived: false, routing: false, rerouteAt: 0, offCount: 0 };
   function currentSpot() { return spotById[trip.queue[trip.idx]]; }
   function arLink(id) {
-    var q = 'ar.html?spot=' + encodeURIComponent(id);
+    var q = 'ar.html?spot=' + encodeURIComponent(id) + '&city=' + encodeURIComponent(DATA.current().id);
     if (pos) q += '&lat=' + pos.lat.toFixed(6) + '&lng=' + pos.lng.toFixed(6);
     if (opts.demo) q += '&demo=1';
     return q;
@@ -218,7 +264,7 @@
   function onPosition() {
     if (!pos) return;
     setGps(opts.demo ? 'Demo walk' : 'GPS ±' + Math.round(pos.acc) + ' m');
-    if (!trip.active) { renderSpots(); return; }
+    if (!trip.active) { renderSpots(); if (!renderTours.live) { renderTours.live = true; renderTours(); } return; }
     if (trip.arrived) return;
     if (!trip.route && !trip.routing && !trip.rerouteAt) { reroute(true); return; }
 
@@ -314,39 +360,66 @@
     renderSpots();
   };
 
-  window.TOURS.forEach(function (t) {
-    var b = document.createElement('button');
-    b.className = 'tour';
-    b.innerHTML = '<b></b><small></small>';
-    b.querySelector('b').textContent = t.name;
-    b.querySelector('small').textContent = t.stops.length + ' stops · ' + t.desc;
-    b.onclick = function () { startTrip(t.stops); };
-    $('tours').appendChild(b);
-  });
+  // Tours nearest to you (or to the city centre) first; big cities have many, so show 24 and a "more" button.
+  var toursShown = 24;
+  function renderTours() {
+    var ref = (pos && !opts.demo) ? pos : DATA.current();
+    var tours = window.TOURS.map(function (t) {
+      var first = spotById[t.stops[0]];
+      return { t: t, d: ref && first ? N.dist(ref, first) : 0 };
+    });
+    tours.sort(function (a, b) { return a.d - b.d; });
+    $('tours').innerHTML = '';
+    tours.slice(0, toursShown).forEach(function (x) {
+      var t = x.t, b = document.createElement('button');
+      b.className = 'tour';
+      b.innerHTML = '<b></b><small></small>';
+      b.querySelector('b').textContent = t.name;
+      b.querySelector('small').textContent = t.stops.length + ' stops · ' + t.desc;
+      b.onclick = function () { startTrip(t.stops); };
+      $('tours').appendChild(b);
+    });
+    if (tours.length > toursShown) {
+      var more = document.createElement('button');
+      more.className = 'tour more';
+      more.textContent = 'Show ' + (tours.length - toursShown) + ' more tours';
+      more.onclick = function () { toursShown += 48; renderTours(); };
+      $('tours').appendChild(more);
+    }
+    $('tours-h').textContent = 'Walking tours' + (tours.length ? ' · ' + tours.length : '');
+  }
+  renderTours();
 
   var lastListAt = 0, lastListLive = false;
-  function renderSpots() {
+  function renderSpots(force) {
     var live = !!pos && !opts.demo;
     // Re-sort at most every 3 s, but always redraw when distances first become available.
-    if (live === lastListLive && Date.now() - lastListAt < 3000 && $('spots').children.length) return;
+    if (!force && live === lastListLive && Date.now() - lastListAt < 3000 && $('spots').children.length) return;
     lastListAt = Date.now(); lastListLive = live;
-    var list = window.SPOTS.map(function (s) { return { s: s, d: live ? N.dist(pos, s) : null }; });
-    if (live) list.sort(function (a, b) { return a.d - b.d; });
+    var ref = live ? pos : DATA.current();
+    var list = window.SPOTS.map(function (s) { return { s: s, d: ref ? N.dist(ref, s) : null }; });
+    if (ref) list.sort(function (a, b) { return a.d - b.d; });
     $('spots').innerHTML = '';
-    list.forEach(function (x) {
+    list.slice(0, 40).forEach(function (x) {
       var b = document.createElement('button');
       b.className = 'spot';
       b.innerHTML = '<div class="meta"><b></b><small></small></div><span class="dist"></span>';
       b.querySelector('b').textContent = x.s.name;
       b.querySelector('small').textContent = x.s.area + ' · ' + x.s.tags.join(', ');
-      b.querySelector('.dist').textContent = x.d === null ? '→' : N.fmtDist(x.d);
+      b.querySelector('.dist').textContent = live ? N.fmtDist(x.d) : '→';
       b.onclick = function () { startTrip([x.s.id]); };
       $('spots').appendChild(b);
     });
+    if (list.length > 40) {
+      var p = document.createElement('p'); p.className = 'credit';
+      p.textContent = 'Showing the nearest 40 of ' + list.length + ' spots in ' + DATA.current().name + '. All of them are on the map.';
+      $('spots').appendChild(p);
+    }
+    $('spots-h').textContent = live ? 'Nearest street art' : 'Street art in ' + DATA.current().name;
   }
 
   // ---------- Start ----------
-  syncSettings();
+  syncSettings(); cityLabel();
   renderSpots();
   if (opts.demo) setGps('Demo walk: pick a tour or spot'); else startGPS();
   var saved = load('trip', null);
@@ -355,4 +428,4 @@
   if (pre) startTrip(pre);
   else if (saved && saved.queue && saved.queue.every(function (id) { return spotById[id]; })) startTrip(saved.queue, saved.idx);
   window.sprayReady = true;
-})();
+});

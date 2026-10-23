@@ -28,9 +28,13 @@
   window.sprayState = state;
 
   var spotById = {};
-  window.SPOTS.forEach(function (s) { spotById[s.id] = s; });
-  if (spotById[params.get('spot')]) state.target = spotById[params.get('spot')];
   var demo = params.has('demo');
+  // Tracking: 'world' = Zappar instant world tracking (the camera moves through the scene, so the dots stay
+  // put on the pavement as you walk and pan); 'attitude' = rotation only (demo walks, tests, fallback).
+  var tracking = params.get('track') || (demo ? 'attitude' : 'world');
+  try { if (!params.get('track') && localStorage.getItem('spraypath.track')) tracking = localStorage.getItem('spraypath.track'); } catch (e) {}
+  if (tracking !== 'world' && tracking !== 'attitude') tracking = 'world';
+  state.tracking = tracking;
 
   // ---------- Voice (same on/off setting as the map page) ----------
   var voiceOn = true;
@@ -45,6 +49,9 @@
   } });
 
   // ---------- Position: GPS, or a demo walk from the position passed by the map page ----------
+  // Starts once the city's data has loaded (DATA.ready, at the bottom of this file).
+  var sim = { path: [], i: 0, speed: 1.4 * 2 };
+  function startPositioning() {
   if (demo && params.get('lat')) {
     state.pos = { lat: +params.get('lat'), lng: +params.get('lng'), acc: 5, demo: true, course: null };
   } else if ('geolocation' in navigator) {
@@ -57,7 +64,6 @@
   } else state.gpsErr = 'not available';
 
   // Demo walk: move along the route at a brisk (sped-up) walking pace.
-  var sim = { path: [], i: 0, speed: 1.4 * 2 };
   if (demo) setInterval(function () {
     if (!state.pos || sim.i >= sim.path.length || state.arrived) return;
     var left = sim.speed, cur = { lat: state.pos.lat, lng: state.pos.lng }, h = state.pos.course;
@@ -71,6 +77,7 @@
     state.pos = { lat: cur.lat, lng: cur.lng, acc: 5, demo: true, course: h };
     onPosition();
   }, 1000);
+  }
 
   // ---------- Compass ----------
   var compass = N.createCompass();
@@ -304,13 +311,19 @@
         var target = camYaw + heading * Math.PI / 180;
         if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * (1 - Math.exp(-dt / 0.6));
       }
-      // Slide so your (route-snapped) position is under the camera.
+      // Slide so your (route-snapped) position is under the camera. With world tracking the camera moves
+      // through the scene as you walk, so the target is camera position minus the rotated route point; the
+      // pavement sits EYE below the camera's (slowly smoothed) height.
       var u = userAnchor();
       this.user = u;
-      this.v.set(u.x, 0, u.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), o.rotation.y);
-      var tx = -this.v.x, tz = -this.v.z, ty = -EYE;
+      cam.getWorldPosition(this.cp || (this.cp = new THREE.Vector3()));
+      var cp = this.cp;
+      if (this.camY === undefined) this.camY = cp.y; else this.camY += (cp.y - this.camY) * (1 - Math.exp(-dt / 3));
+      this.v.set(u.x, 0, u.z).applyAxisAngle(this.up || (this.up = new THREE.Vector3(0, 1, 0)), o.rotation.y);
+      var tx = cp.x - this.v.x, tz = cp.z - this.v.z, ty = this.camY - EYE;
       if (this.snap) { o.position.set(tx, ty, tz); this.snap = heading === null; }
       else { var k = 1 - Math.exp(-dt / 0.2); o.position.x += (tx - o.position.x) * k; o.position.z += (tz - o.position.z) * k; o.position.y = ty; }
+      state.camPos = cp;
     },
   });
 
@@ -374,17 +387,19 @@
 
       cam.getWorldPosition(this.p);
       cam.getWorldDirection(this.dir);
+      var worldEl = this.worldEl || (this.worldEl = sceneEl.querySelector('[sp-world]'));
       // Sit in the bottom third of the screen, 3.2 m out along the view (never below the pavement), so you
       // can hold the phone low and tilted down while walking.
       var fovY = 2 * Math.atan(1 / cam.projectionMatrix.elements[5]);
       if (!isFinite(fovY) || fovY < 0.2) fovY = 1;
-      // Direction through a point 32% of the way from the screen centre to the bottom edge.
+      // Direction through a point 52% of the way from the screen centre to the bottom edge.
       var ray = this.ray || (this.ray = new THREE.Vector3());
-      ray.set(0, -0.32 * Math.tan(fovY / 2), -1).normalize().transformDirection(cam.matrixWorld);
+      ray.set(0, -0.52 * Math.tan(fovY / 2), -1).normalize().transformDirection(cam.matrixWorld);
       // Go 3.2 m along it, or less if that would be under the pavement; scale with distance so the arrow
       // keeps the same size on screen.
       var d = 3.2;
-      if (ray.y < -0.01) d = Math.min(d, (EYE - 0.35) / -ray.y);
+      var ground = worldEl && worldEl.object3D ? worldEl.object3D.position.y : this.p.y - EYE;
+      if (ray.y < -0.01) d = Math.min(d, Math.max(0.6, this.p.y - ground - 0.35) / -ray.y);
       d = Math.max(d, 1.2);
       o.position.set(this.p.x + ray.x * d, this.p.y + ray.y * d + Math.sin(t / 450) * 0.02 * d, this.p.z + ray.z * d);
       o.scale.setScalar(d / 3.2);
@@ -393,7 +408,6 @@
       var camYaw = Math.atan2(-this.dir.x, -this.dir.z);
 
       var arrow = this.el.querySelector('[sp-arrow]').object3D;
-      var worldEl = sceneEl.querySelector('[sp-world]');
       if (!state.pos || !state.target || !state.headingSrc || state.arrived || !nav.origin) { arrow.visible = false; state.rel = null; return; }
 
       // Where to point, in the world's local frame, then into scene space via the world's rotation.
@@ -407,6 +421,41 @@
       state.rel = -angleDiff(this.yaw, camYaw) * 180 / Math.PI;
     },
   });
+
+  // ---------- Tracking set-up ----------
+  // World tracking: the Zappar instant anchor is the world origin and the camera moves around it (pose-mode
+  // anchor-origin). The anchor is dropped ~3 m ahead once the camera has been running for a moment; after that
+  // the scene stays put as you walk. Attitude mode: the camera sits at the origin and only rotates.
+  var anchorLocked = false, lockAt = 0;
+  function setupTracking() {
+    var sc = document.querySelector('a-scene'), cam = $('cam'), anchor = $('anchor');
+    if (tracking === 'world') {
+      anchor.setAttribute('zappar-instant', { placementMode: true, anchorPoseOffset: { x: 0, y: 0, z: -3 } });
+      cam.setAttribute('zappar-camera', { poseMode: 'anchor-origin', poseAnchorOrigin: '#anchor' });
+    } else {
+      cam.setAttribute('zappar-camera', { poseMode: 'attitude' });
+    }
+    sc.addEventListener('loaded', function () {
+      // The world starts off with its ground EYE below the camera; in attitude mode the camera never moves.
+    });
+  }
+  function tickTracking() {
+    if (tracking !== 'world' || anchorLocked || state.cameraFrames < 1) return;
+    if (!lockAt) lockAt = Date.now() + 1500;
+    if (Date.now() < lockAt) return;
+    $('anchor').setAttribute('zappar-instant', 'placementMode', false);
+    anchorLocked = true;
+  }
+  function relock() {          // "Reset tracking": drop the anchor again 3 m ahead of where the camera is now
+    if (tracking !== 'world') return;
+    anchorLocked = false; lockAt = Date.now() + 400;
+    $('anchor').setAttribute('zappar-instant', 'placementMode', true);
+    var w = document.querySelector('[sp-world]'); if (w && w.components['sp-world']) { w.components['sp-world'].snap = true; w.components['sp-world'].camY = undefined; }
+  }
+  function setTracking(mode) {
+    try { localStorage.setItem('spraypath.track', mode); } catch (e) {}
+    var u = new URL(location.href); u.searchParams.set('track', mode); location.href = u.toString();
+  }
 
   // ---------- Status panel ----------
   function row(id, ok, text) {
@@ -426,6 +475,11 @@
       state.compass !== null ? Math.round(state.compass) + '°' : state.headingSrc ? 'using ' + state.headingSrc : 'none');
     row('st-gps', state.pos ? true : state.gpsErr ? false : null,
       state.pos ? (state.pos.demo ? 'demo walk' : '±' + Math.round(state.pos.acc) + ' m') : state.gpsErr ? state.gpsErr : 'waiting');
+    tickTracking();
+    var cpos = state.camPos;
+    row('st-track', tracking === 'world' ? (anchorLocked ? true : null) : true,
+      tracking === 'world' ? (anchorLocked ? 'world tracking' + (cpos ? ' · camera at ' + cpos.x.toFixed(1) + ', ' + cpos.y.toFixed(1) + ', ' + cpos.z.toFixed(1) : '') : 'world tracking · placing anchor…')
+                           : 'attitude (rotation only)');
     row('st-route', nav.route ? true : null, state.arrived ? 'arrived' : state.routeMsg);
     row('st-target', state.target && state.pos ? true : null, state.target ? state.target.name + (state.pos ? ' · ' + N.fmtDist(N.dist(state.pos, state.target)) : '') : 'nearest spot');
     var txt = labelText();
@@ -443,6 +497,11 @@
   setInterval(onPosition, 1000);       // keep step tracking ticking even without new fixes
 
   document.addEventListener('DOMContentLoaded', function () {
+    setupTracking();
+    $('track-reset').onclick = relock;
+    $('track-mode').onclick = function () { setTracking(tracking === 'world' ? 'attitude' : 'world'); };
+    $('track-mode').textContent = tracking === 'world' ? 'Switch to rotation-only tracking' : 'Switch to world tracking';
+    $('track-reset').classList.toggle('hidden', tracking !== 'world');
     $('compass-btn').onclick = hookCompass;
     $('compass-hint').onclick = hookCompass;
     // iOS (and Zappar's App Clip) only give compass readings after a tap: ask on the first tap anywhere.
@@ -454,11 +513,16 @@
       var c = $('status').classList.toggle('collapsed');
       $('status-toggle').textContent = c ? 'Show' : 'Hide';
     };
-    $('back').href = 'index.html?nosplash=1' + (demo ? '&demo=1' : '');
+    $('back').href = 'index.html?nosplash=1' + (demo ? '&demo=1' : '') + (params.get('city') ? '&city=' + encodeURIComponent(params.get('city')) : '');
     $('real-gps').onclick = function () {
       try { localStorage.setItem('spraypath.demo', 'false'); } catch (e) {}
       location.href = 'ar.html' + (state.target ? '?spot=' + encodeURIComponent(state.target.id) : '');
     };
-    window.sprayReady = true;
+    window.DATA.ready(function () {
+      window.SPOTS.forEach(function (s) { spotById[s.id] = s; });
+      if (spotById[params.get('spot')]) state.target = spotById[params.get('spot')];
+      startPositioning();
+      window.sprayReady = true;
+    });
   });
 })();

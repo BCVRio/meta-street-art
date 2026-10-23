@@ -1,6 +1,6 @@
 # SprayPath, by BCVR Immersive
 
-Walking directions and AR to London street art, hosted on **ZapWorks**. Built with OpenStreetMap, Leaflet,
+Walking directions and AR to street art, worldwide, hosted on **ZapWorks**. Built with OpenStreetMap, Leaflet,
 A-Frame and **Zappar for A-Frame**.
 
 This is a staged rebuild: each milestone is tested on a real phone before the next is added.
@@ -8,7 +8,7 @@ This is a staged rebuild: each milestone is tested on a real phone before the ne
 | Page | What it does | Status |
 | --- | --- | --- |
 | `index.html`, map | Animated title page (waits for the ZapWorks screen) ("Follow the art.", Begin now plays the spray-can sound logo and "Welcome to Spray Path"), OpenStreetMap map, live GPS, walking tours, turn-by-turn directions (route on the map, next-turn card, full step list, voice prompts, re-routing when you go off route), arrival stories, demo walk | Built |
-| `ar.html`, AR | Zappar camera (set up as in Zappar's A-Frame docs), a trail of glowing pink dots on the pavement along the walking route, a 3D pink guide arrow in the bottom third of the screen (so you can hold the phone low), turn-by-turn labels matching the map, arrival story, status panel | **Milestone 2**: test on iPhone |
+| `ar.html`, AR | Zappar camera with **instant world tracking** (6DoF: the dots stay on the pavement as you walk and pan; rotation-only fallback for demo walks), a trail of glowing pink dots along the walking route, a 3D pink guide arrow low on the screen (so you can hold the phone low), turn-by-turn labels matching the map, arrival story, status panel | **Milestone 2**: test on iPhone |
 
 Next milestones, each only after the last one works on a phone:
 1. Zappar camera + one arrow ✓
@@ -23,11 +23,13 @@ index.html          Map page
 ar.html             AR page (A-Frame scene with zappar-camera, zappar-permissions-ui, zappar-compatibility-ui)
 js/errors.js        On-screen error banner (phones have no console)
 js/worker-shim.js   Starts Zappar's workers from blob: URLs so they run under ZapWorks' cross-origin isolation
-js/spots.js         The 25 spots and 6 walking tours
+js/data.js          Loads one city's spots and tours on demand (data/index.json, data/cities/<city>.json)
 js/nav.js           Geo maths, OSRM walking routes, voice, compass
 js/map-app.js       Map page logic
 js/splash.js        Title page: animates the key art (assets/title-keyart.webp, made with Higgsfield) and Begin now
 js/ar-app.js        AR: route + turn-by-turn, components sp-world (north + GPS alignment), sp-dots, sp-pointer, sp-arrow, sp-label; status panel
+data/               Per-city street art data built from OpenStreetMap (see tools/data/fetch.md)
+tools/data/         build.py (OSM → per-city JSON + auto tours), fetch-places.py, curated/london.json (hand-written London)
 assets/             Title key art; sounds/welcome.mp3 sound logo (voice made with Higgsfield, spray and chime synthesised)
 vendor/             A-Frame 1.8.0, Zappar for A-Frame 4.0.0 (bundled), Leaflet 1.9.4, Bungee font (OFL)
 tools/zappar-build  How vendor/zappar-aframe is built (scripts/build-zappar.sh)
@@ -35,6 +37,13 @@ scripts/            package-zapworks.sh (zip for upload), train-target.sh (mural
 ```
 
 All scripts are plain `<script>` files: no modules and no build step for the app itself.
+
+## Street art data
+
+One city is loaded at a time. `data/index.json` lists every city with mapped street art; the map page switches to
+the nearest one on the first GPS fix, and the city button opens a searchable list. Spots and auto-generated walking
+tours come from OpenStreetMap (`tourism=artwork`), London's tours are hand-written. To refresh, see
+`tools/data/fetch.md`. Map a mural at openstreetmap.org and it appears in the next build.
 
 ## ZapWorks hosting notes
 
