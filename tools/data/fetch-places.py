@@ -12,7 +12,7 @@ def fetch(q):
     try:
         for attempt in range(8):
             ep = ENDPOINTS[attempt % len(ENDPOINTS)]
-            r = subprocess.run(['curl', '-sS', '-m', '240', '-A', 'SprayPath-data/1.0 (street art tour app)', '--data-urlencode', f'data@{qf}', ep], capture_output=True, text=True)
+            r = subprocess.run(['curl', '-sS', '-m', '290', '-A', 'SprayPath-data/1.0 (street art tour app)', '--data-urlencode', f'data@{qf}', ep], capture_output=True, text=True)
             try:
                 d = json.loads(r.stdout)
                 if 'elements' in d: return d['elements']
@@ -23,9 +23,9 @@ def fetch(q):
 cities = json.load(open(sys.argv[1]))['cities']
 cities = [c for c in cities if c['tours'] > 0]
 out = []; failed = []
-for i in range(0, len(cities), 12):
-    batch = cities[i:i + 12]
-    q = '[out:json][timeout:120];(' + ''.join(f'node["place"~"^(suburb|quarter|neighbourhood|borough|district)$"]["name"](around:14000,{c["lat"]},{c["lng"]});' for c in batch) + ');out tags;'
+for i in range(0, len(cities), 30):
+    batch = cities[i:i + 30]
+    q = '[out:json][timeout:250];(' + ''.join(f'node["place"~"^(suburb|quarter|neighbourhood|borough|district)$"]["name"](around:14000,{c["lat"]},{c["lng"]});' for c in batch) + ');out tags;'
     els = fetch(q)
     if els is None: failed += [c['id'] for c in batch]; print('FAILED', [c['id'] for c in batch]); continue
     out += [{'id': f"node/{e['id']}", 'lat': e['lat'], 'lon': e['lon'], 'tags': e['tags']} for e in els]

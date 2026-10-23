@@ -12,10 +12,10 @@ One request at a time, seven continent-sized chunks, patient retries across mirr
 servers are often overloaded; this can take an hour or more). It writes two files:
 
 - `artwork.json`: `nwr["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art|stencil|paste_up",i]` → `out center tags;`
-- `cities.json`: `node["place"~"^(city|town)$"](if:number(t["population"])>=100000)` → `out tags;`
+- `cities.json`: `node["place"="city"]` → `out;` (districts tagged as cities are folded into the big city at build time)
 
-Each element is saved as `{id, lat, lon, tags}`. Overpass mirrors that worked: maps.mail.ru, overpass-api.de,
-kumi.systems, private.coffee. Wait a few seconds between requests and split a chunk that times out.
+Each element is saved as `{id, lat, lon, tags}`. overpass.openstreetmap.fr was the one mirror that answered reliably
+(about 3 minutes for Europe); the others were overloaded. The last fetch (Oct 2026) gave 46,826 artworks and 11,851 cities.
 
 ## 2. Neighbourhood names (optional, improves tour names)
 
@@ -29,8 +29,8 @@ Run it after a first build (it reads `data/index.json`), then rebuild with the p
     python3 -I tools/data/build.py artwork.json cities.json data places.json
 
 What it does:
-- keeps artworks with a name or an artist, plus unnamed murals ("Untitled mural");
-- assigns each to the nearest city of 100k+ people within 25 km;
+- keeps every artwork (unnamed ones become "Untitled mural" / "Untitled graffiti");
+- assigns each to its nearest city (place=city), however far;
 - merges `tools/data/curated/<city>.json` (hand-written spots, tours and demo starts; London), skipping OSM
   copies within 40 m of a curated spot;
 - writes a short spoken blurb from the tags (name, artist, year, subject, description);

@@ -39,7 +39,7 @@ def slug(s):
     s = re.sub(r'[^a-zA-Z0-9]+', '-', s).strip('-').lower()
     return s[:40] or 'x'
 
-CITY_RADIUS = 25000         # a spot belongs to the nearest big city within this distance
+CITY_RADIUS = 10000000      # every spot belongs to its nearest city, however far
 LINK = 400                  # spots closer than this are walkable neighbours
 MAX_STOPS, MIN_STOPS = 8, 3
 MAX_WALK = 4500             # straight-line length of a tour
@@ -93,12 +93,17 @@ class Grid:
     @staticmethod
     def cell(ll): return (int(ll[0] // 0.2), int(ll[1] // 0.2))
     def near(self, ll, maxd):
+        """Nearest item within maxd: searches growing rings of cells (so remote spots still find a city)."""
         cx, cy = self.cell(ll); best = None; bd = maxd
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for it in self.cells.get((cx + dx, cy + dy), ()):
-                    d = dist(ll, self.key(it))
-                    if d < bd: bd, best = d, it
+        for ring in range(0, 40):
+            if best is not None and ring > 1: break          # found at ring r → nothing closer beyond ring r+1
+            for dx in range(-ring, ring + 1):
+                for dy in range(-ring, ring + 1):
+                    if max(abs(dx), abs(dy)) != ring: continue
+                    for it in self.cells.get((cx + dx, cy + dy), ()):
+                        d = dist(ll, self.key(it))
+                        if d < bd: bd, best = d, it
+            if ring * 0.2 * 111000 > maxd: break
         return best, bd
 
 def make_tours(spots, city_name, places=None):
@@ -160,7 +165,7 @@ def make_tours(spots, city_name, places=None):
         first, last = spots[order[0]], spots[order[-1]]
         km = max(0.3, round(length * 1.3 / 1000, 1))     # streets are longer than straight lines
         tid = slug(name)
-        named = [spots[i]['name'] for i in order if not spots[i]['name'].startswith(('Untitled', 'Mural by', 'Piece by'))]
+        named = [spots[i]['name'] for i in order if not spots[i]['name'].startswith(('Untitled', 'Mural by', 'Graffiti by', 'Street art by'))]
         desc = (f"{named[0]} to {named[-1]}" if len(named) >= 2 else f"{named[0]} and around" if named else f"{len(order)} walls") + f" · about {km:g} km"
         out.append({'id': tid, 'name': name, 'desc': desc, 'stops': [spots[i]['id'] for i in order], 'km': km})
     return out
@@ -178,13 +183,28 @@ def main():
     def pop(c):
         try: return int(''.join(ch for ch in c['tags'].get('population', '') if ch.isdigit()) or 0)
         except Exception: return 0
-    cities = [c for c in cities if c['tags'].get('name') and (pop(c) == 0 or pop(c) >= 50000)]
+    cities = [c for c in cities if c['tags'].get('name')]
+    # OSM also tags inner districts as place=city (City of London, Westminster…): fold a city into any bigger
+    # one nearby so a metropolis is one entry. Reach grows with the bigger city's population.
+    cities.sort(key=pop, reverse=True)
+    kept = []; kgrid = defaultdict(list)
+    for c in cities:
+        hc = (c['lat'], c['lon']); ok = True
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for k in kgrid.get((int(hc[0] // 0.2) + dx, int(hc[1] // 0.2) + dy), ()):
+                    reach = 18000 if pop(k) >= 2000000 else 12000 if pop(k) >= 500000 else 7000 if pop(k) >= 150000 else 4000
+                    if dist(hc, (k['lat'], k['lon'])) < reach: ok = False; break
+                if not ok: break
+            if not ok: break
+        if ok: kept.append(c); kgrid[(int(hc[0] // 0.2), int(hc[1] // 0.2))].append(c)
+    print(f"cities: {len(cities)} → {len(kept)} after folding districts into their city")
+    cities = kept
     cgrid = Grid(cities, lambda c: (c['lat'], c['lon']))
     by_city = defaultdict(list); skipped = Counter()
     for e in art:
         t = e['tags']; kind = (t.get('artwork_type') or '').lower()
         name = artwork_name(t); artist = t.get('artist_name') or t.get('artist')
-        if not name and not artist and 'mural' not in kind: skipped['anonymous non-mural'] += 1; continue
         city, d = cgrid.near((e['lat'], e['lon']), CITY_RADIUS)
         if not city: skipped['no city nearby'] += 1; continue
         by_city[city['id']].append(e)
@@ -197,9 +217,13 @@ def main():
                 with open(os.path.join(cdir, fn)) as f: curated[fn[:-5]] = json.load(f)
     index = []; os.makedirs(os.path.join(out_dir, 'cities'), exist_ok=True)
     city_by_id = {c['id']: c for c in cities}
-    for cid, els in by_city.items():
+    used_slugs = Counter()
+    # biggest cities first, so "london" is London, and a smaller namesake gets a suffix
+    for cid, els in sorted(by_city.items(), key=lambda kv: -len(kv[1])):
         c = city_by_id[cid]; cname = c['tags'].get('name:en') or c['tags']['name']
-        city_slug = slug(cname); country = c['tags'].get('addr:country') or c['tags'].get('is_in:country_code') or ''
+        country = c['tags'].get('addr:country') or c['tags'].get('is_in:country_code') or ''
+        city_slug = slug(cname); used_slugs[city_slug] += 1
+        if used_slugs[city_slug] > 1: city_slug += '-' + (country.lower() if country else '') + str(used_slugs[city_slug])
         spots = []; ids = Counter()
         cur = curated.get(city_slug, {'spots': [], 'tours': [], 'demoStarts': []})
         for s in cur['spots']: spots.append(dict(s, curated=True))
@@ -208,7 +232,8 @@ def main():
             t = e['tags']; name = artwork_name(t); artist = (t.get('artist_name') or t.get('artist') or '').strip()
             kind = (t.get('artwork_type') or 'mural').split(';')[0].lower()
             if not name:
-                name = (f"Mural by {artist}" if artist else 'Untitled mural') if 'mural' in kind else f"Piece by {artist}"
+                what = 'mural' if 'mural' in kind else 'graffiti' if 'graffiti' in kind else 'street art'
+                name = f"{what.capitalize()} by {artist}" if artist else f"Untitled {what}"
             if cur_grid.near((e['lat'], e['lon']), 40)[0]: continue      # already hand-written
             base = slug(name); ids[base] += 1
             sid = base if ids[base] == 1 else f"{base}-{ids[base]}"

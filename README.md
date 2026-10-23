@@ -40,7 +40,7 @@ All scripts are plain `<script>` files: no modules and no build step for the app
 
 ## Street art data
 
-One city is loaded at a time. `data/index.json` lists every city with mapped street art; the map page switches to
+One city is loaded at a time (2,500 cities, 46,800 spots and 5,300 auto-generated tours at the last build). `data/index.json` lists every city with mapped street art; the map page switches to
 the nearest one on the first GPS fix, and the city button opens a searchable list. Spots and auto-generated walking
 tours come from OpenStreetMap (`tourism=artwork`), London's tours are hand-written. To refresh, see
 `tools/data/fetch.md`. Map a mural at openstreetmap.org and it appears in the next build.
