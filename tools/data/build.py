@@ -174,7 +174,11 @@ def main():
     if len(sys.argv) > 4 and os.path.exists(sys.argv[4]):
         pl = [p for p in load_elements(sys.argv[4]) if p['tags'].get('name')]
         places = Grid(pl, lambda p: (p['lat'], p['lon'])); print(f"places: {len(pl)}")
-    cities = [c for c in cities if c['tags'].get('name')]
+    # place=city nodes with a name; where a population is given, only real cities (50k+) anchor spots
+    def pop(c):
+        try: return int(''.join(ch for ch in c['tags'].get('population', '') if ch.isdigit()) or 0)
+        except Exception: return 0
+    cities = [c for c in cities if c['tags'].get('name') and (pop(c) == 0 or pop(c) >= 50000)]
     cgrid = Grid(cities, lambda c: (c['lat'], c['lon']))
     by_city = defaultdict(list); skipped = Counter()
     for e in art:

@@ -7,23 +7,24 @@ Writes <out-dir>/artwork.json and <out-dir>/cities.json (and per-chunk files in 
 """
 import json, os, random, subprocess, sys, tempfile, time
 
-MIRRORS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter',
+MIRRORS = ['https://overpass.openstreetmap.fr/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass.kumi.systems/api/interpreter',
            'https://overpass.private.coffee/api/interpreter', 'https://overpass-api.de/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter']
 CHUNKS = {  # south, west, north, east
     'europe': (35, -30, 72, 40), 'africa-middle-east': (-36, -30, 35, 60), 'north-asia': (35, 40, 72, 180),
     'south-asia': (-11, 60, 35, 180), 'oceania': (-50, 100, -11, 180), 'north-america': (14, -170, 72, -50),
     'latin-america': (-56, -100, 14, -30),
 }
-ART = '[out:json][timeout:600][maxsize:1073741824];nwr["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art|stencil|paste_up|streetart",i]({bbox});out center tags;'
-CITY = '[out:json][timeout:600];node["place"~"^(city|town)$"](if:number(t["population"])>=100000)({bbox});out;'
+# Keep each request under the mirrors' ~300 s front-end limit: plain tag filters, population filtered later.
+ART = '[out:json][timeout:250];nwr["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art|stencil|paste_up|streetart",i]({bbox});out center tags;'
+CITY = '[out:json][timeout:250];node["place"="city"]({bbox});out;'
 
-def fetch(query, log):
+def fetch(query, log, attempts=60):
     with tempfile.NamedTemporaryFile('w', suffix='.ql', delete=False) as f: f.write(query); qf = f.name
     try:
-        for attempt in range(60):
+        for attempt in range(attempts):
             ep = MIRRORS[attempt % len(MIRRORS)]
             t0 = time.time()
-            r = subprocess.run(['curl', '-sS', '-m', '660', '-A', 'SprayPath-data/1.0 (street art tour app)', '--data-urlencode', f'data@{qf}', ep], capture_output=True, text=True)
+            r = subprocess.run(['curl', '-sS', '-m', '290', '-A', 'SprayPath-data/1.0 (street art tour app)', '--data-urlencode', f'data@{qf}', ep], capture_output=True, text=True)
             try:
                 d = json.loads(r.stdout)
                 if 'elements' in d:
@@ -35,6 +36,19 @@ def fetch(query, log):
     finally: os.unlink(qf)
     return None
 
+def fetch_bbox(tmpl, bb, log, depth=0):
+    """Fetch a bbox; if it keeps failing, split it in four (down to 3 levels) and fetch the parts."""
+    els = fetch(tmpl.format(bbox=','.join(map(str, bb))), log, attempts=2 if depth < 3 else 40)
+    if els is not None or depth >= 3: return els
+    s, w, n, e = bb; mlat = (s + n) / 2; mlon = (w + e) / 2
+    log(f'  splitting {bb}')
+    out = []
+    for sub in ((s, w, mlat, mlon), (s, mlon, mlat, e), (mlat, w, n, mlon), (mlat, mlon, n, e)):
+        part = fetch_bbox(tmpl, sub, log, depth + 1)
+        if part is None: return None
+        out += part
+    return out
+
 def main():
     out = sys.argv[1]; os.makedirs(os.path.join(out, 'chunks'), exist_ok=True)
     logf = open(os.path.join(out, 'fetch.log'), 'a')
@@ -44,7 +58,7 @@ def main():
             path = os.path.join(out, 'chunks', f'{kind}-{name}.json')
             if os.path.exists(path): continue
             log(f'{kind} {name} {bb}')
-            els = fetch(tmpl.format(bbox=','.join(map(str, bb))), log)
+            els = fetch_bbox(tmpl, bb, log)
             if els is None: log(f'  GAVE UP on {kind} {name}'); continue
             json.dump(els, open(path, 'w'))
             time.sleep(20)

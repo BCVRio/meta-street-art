@@ -5,7 +5,7 @@ data/index.json, for naming the auto-generated tours. Polite to Overpass: batche
 Usage: python3 -I tools/data/fetch-places.py data/index.json <out places.json>
 """
 import json, subprocess, sys, time, tempfile, os
-ENDPOINTS = ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass-api.de/api/interpreter',
+ENDPOINTS = ['https://overpass.openstreetmap.fr/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass-api.de/api/interpreter',
              'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter']
 def fetch(q):
     with tempfile.NamedTemporaryFile('w', suffix='.ql', delete=False) as f: f.write(q); qf = f.name
