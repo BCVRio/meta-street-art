@@ -20,7 +20,7 @@ window.DATA.ready(function () {
   ['pointerdown', 'keydown'].forEach(function (ev) { addEventListener(ev, function () { touched = true; }, { capture: true, once: true }); });
   var speaker = N.createSpeaker({ enabled: function () { return opts.voice; },
     ready: function () { return touched && !document.getElementById('splash'); } });
-  var say = function (t, o) { speaker.say(t, o); };
+  var say = function (t, o) { if (!arOpen) speaker.say(t, o); };
 
   // ---------- Map ----------
   var map = L.map('map', { zoomControl: false }).setView([51.515, -0.095], 13);
@@ -54,7 +54,7 @@ window.DATA.ready(function () {
       el.querySelector('b').textContent = s.name;
       el.querySelector('small').textContent = s.area;
       el.querySelector('button').onclick = function () { map.closePopup(); startTrip([s.id]); };
-      el.querySelector('a').onclick = function () { el.querySelector('a').href = arLink(s.id); };
+      el.querySelector('a').onclick = function (ev) { ev.preventDefault(); map.closePopup(); openAR(arLink(s.id)); };
       m.bindPopup(el);
       spotMarkers[s.id] = m;
     });
@@ -162,6 +162,29 @@ window.DATA.ready(function () {
   // ---------- Trip / turn-by-turn ----------
   var trip = { active: false, queue: [], idx: 0, route: null, step: 1, announced: {}, arrived: false, routing: false, rerouteAt: 0, offCount: 0 };
   function currentSpot() { return spotById[trip.queue[trip.idx]]; }
+  // AR opens in a frame over the map (no page reload, so ZapWorks' screen stays away); closing it brings
+  // the SprayPath title back with a "Next tour" button.
+  var arOpen = false;
+  function openAR(url) {
+    var f = $('ar-frame');
+    f.src = url + '&embed=1'; f.hidden = false; arOpen = true;
+    speaker.cancel();
+  }
+  function closeAR() {
+    var f = $('ar-frame');
+    f.hidden = true; f.src = 'about:blank'; arOpen = false;
+    if (!window.spraySplash) { if (trip.active) endTrip(); return; }
+    window.spraySplash.show({
+      eyebrow: 'WELCOME BACK', sub: 'Pick your next walk', button: 'Next tour',
+      onBegin: function () { if (trip.active) endTrip(); setSheet(false); },
+      onBack: trip.active ? function () {} : null,
+    });
+  }
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'spraypath-close') return;
+    closeAR();
+  });
+
   function arLink(id) {
     var q = 'ar.html?spot=' + encodeURIComponent(id) + '&city=' + encodeURIComponent(DATA.current().id);
     if (pos) q += '&lat=' + pos.lat.toFixed(6) + '&lng=' + pos.lng.toFixed(6);
@@ -194,6 +217,7 @@ window.DATA.ready(function () {
     $('turn-dist').textContent = '–';
     $('nav-summary').textContent = '';
     $('btn-ar').href = arLink(spot.id);
+    $('btn-ar').onclick = function (ev) { ev.preventDefault(); openAR(arLink(spot.id)); };
     Object.keys(spotMarkers).forEach(function (id) {
       spotMarkers[id].setIcon(L.divIcon({ className: '', html: '<div class="spot-pin' + (id === spot.id ? ' target' : '') + '"></div>',
         iconSize: id === spot.id ? [22, 22] : [16, 16], iconAnchor: id === spot.id ? [11, 11] : [8, 8] }));

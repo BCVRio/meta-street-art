@@ -515,9 +515,15 @@
       $('status-toggle').textContent = c ? 'Show' : 'Hide';
     };
     $('back').href = 'index.html?nosplash=1' + (demo ? '&demo=1' : '') + (params.get('city') ? '&city=' + encodeURIComponent(params.get('city')) : '');
+    // Inside the map page's frame: tell the map to close us instead of reloading the page.
+    if (params.has('embed') && window.parent !== window) {
+      $('back').onclick = function (ev) { ev.preventDefault(); speaker.cancel(); window.parent.postMessage({ type: 'spraypath-close' }, location.origin); };
+    }
     $('real-gps').onclick = function () {
       try { localStorage.setItem('spraypath.demo', 'false'); } catch (e) {}
-      location.href = 'ar.html' + (state.target ? '?spot=' + encodeURIComponent(state.target.id) : '');
+      var u = new URL(location.href); u.searchParams.delete('demo'); u.searchParams.delete('lat'); u.searchParams.delete('lng');
+      if (state.target) u.searchParams.set('spot', state.target.id);
+      location.href = u.toString();
     };
     window.DATA.ready(function () {
       window.SPOTS.forEach(function (s) { spotById[s.id] = s; });

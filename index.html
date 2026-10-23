@@ -121,6 +121,11 @@
     #sheet .grab { width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.45); margin: 0 auto; }
     #sheet.dragging { transition: none; }
     #sheet.hidden-sheet { transform: translateY(100%) !important; }
+    /* AR runs in a frame on top of the map, so coming back is instant and ZapWorks' screen is not shown again. */
+    #ar-frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; z-index: 3500; background: #000; }
+    #ar-frame[hidden] { display: none; }
+    #splash .splash-back { background: none; color: #c9c9d4; font: 600 15px -apple-system, 'Segoe UI', Roboto, sans-serif; text-decoration: underline; padding: 6px 12px; }
+    #splash.gone { display: none; }
     #sheet-tab { position: fixed; z-index: 1001; left: 50%; transform: translateX(-50%) translateY(calc(100% + 60px)); bottom: calc(44px + env(safe-area-inset-bottom)); padding: 14px 22px; min-height: 48px;
       padding: 10px 18px; border-radius: 999px; background: rgba(14,14,20,.7); color: #fff; font-weight: 600; transition: transform .3s cubic-bezier(.2,.8,.2,1); }
     #sheet-tab.show { transform: translateX(-50%) translateY(0); }
@@ -190,12 +195,14 @@
   </header>
   <div class="splash-foot">
     <button id="begin">Begin now</button>
+    <button id="splash-back" class="splash-back hidden">Back to this tour</button>
     <div class="splash-note">Uses your location, camera and compass · Look up when crossing roads</div>
   </div>
   <div class="splash-ver"></div>
 </section>
 
 <div id="map"></div>
+<iframe id="ar-frame" hidden title="AR view" allow="camera; microphone; geolocation; accelerometer; gyroscope; magnetometer; xr-spatial-tracking; autoplay"></iframe>
 
 <div id="top">
   <div id="brand"><small>BCVR IMMERSIVE</small><b>Spray<span>Path</span></b><button id="city-btn" class="chip glass">London ▾</button></div>

@@ -7,9 +7,8 @@
   var root = document.getElementById('splash');
   if (!root) return;
   var params = new URLSearchParams(location.search);
-  if (params.has('spot') || params.has('tour') || params.has('nosplash')) {
-    root.remove(); document.documentElement.classList.remove('splash-open'); return;
-  }
+  var skipIntro = params.has('spot') || params.has('tour') || params.has('nosplash');
+  if (skipIntro) { root.classList.add('gone'); document.documentElement.classList.remove('splash-open'); }
 
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   var art = root.querySelector('.splash-art');
@@ -156,24 +155,48 @@
       if (getComputedStyle(zw).display === 'none' || !zw.isConnected) { clearInterval(poll); start(); }
     }, 500);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchZapWorks);
+  if (skipIntro) running = false;
+  else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchZapWorks);
   else watchZapWorks();
 
   // Begin now: zoom through into the map.
-  var btn = document.getElementById('begin');
+  var btn = document.getElementById('begin'), onBegin = null;
   btn.addEventListener('click', function () {
     if (!root.classList.contains('ready')) return;
+    if (onBegin) { var fn = onBegin; onBegin = null; leave(); fn(); return; }
     playSound();
     // This tap also unlocks speech on iOS for the voice directions (a silent, empty line).
     try { if ('speechSynthesis' in window) { var u = new SpeechSynthesisUtterance(''); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
     // Ask for compass access from this tap (iOS), used later in AR.
     try { if (window.DeviceOrientationEvent && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(function () {}); } catch (e) {}
+    leave();
+  });
+  function leave() {
     root.classList.add('leaving');
     setTimeout(function () {
       running = false;
-      root.remove();
+      root.classList.add('gone');
       document.documentElement.classList.remove('splash-open');
       window.dispatchEvent(new Event('resize'));       // let the map re-measure
     }, reduce ? 50 : 750);
-  });
+  }
+
+  // Shown again when you come back from AR: same title, a "Next tour" button, no sound.
+  var backBtn = document.getElementById('splash-back');
+  window.spraySplash = {
+    show: function (opts) {
+      opts = opts || {};
+      root.querySelector('.splash-eyebrow').textContent = opts.eyebrow || 'BCVR IMMERSIVE';
+      root.querySelector('.splash-sub').textContent = opts.sub || 'London street art in AR';
+      btn.textContent = opts.button || 'Begin now';
+      backBtn.classList.toggle('hidden', !opts.onBack);
+      backBtn.onclick = function () { leave(); if (opts.onBack) opts.onBack(); };
+      onBegin = opts.onBegin || null;
+      root.classList.remove('gone', 'leaving', 'go', 'ready');
+      void root.offsetWidth;                          // restart the CSS animations
+      running = true; t0 = performance.now(); last = t0; requestAnimationFrame(frame);
+      requestAnimationFrame(function () { root.classList.add('go'); });
+      setTimeout(function () { root.classList.add('ready'); }, 1200);
+    },
+  };
 })();
