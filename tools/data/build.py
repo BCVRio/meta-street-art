@@ -75,7 +75,7 @@ def blurb(name, t, city):
 
 def load_elements(path):
     with open(path) as f: d = json.load(f)
-    els = d['elements'] if isinstance(d, dict) else d
+    els = (d.get('elements') or d.get('places') or []) if isinstance(d, dict) else d
     out = []
     for e in els:
         c = e.get('center') or e
@@ -159,7 +159,9 @@ def make_tours(spots, city_name, places=None):
         areas = Counter(a for a in (spots[i].get('_area') for i in order) if a)
         if place: base, name = place['tags']['name'], f"{place['tags']['name']} Walk"
         elif areas: base = areas.most_common(1)[0][0]; name = f"{base} Walk"
-        else: base = spots[order[0]]['name']; name = f"{base} & around"
+        else:
+            named = [spots[i]['name'] for i in order if not spots[i]['name'].startswith(('Untitled', 'Mural by', 'Graffiti by', 'Street art by'))]
+            base = named[0] if named else city_name; name = f"{base} & around" if named else f"{city_name} walls"
         used[name] += 1
         if used[name] > 1: name += f" {used[name]}"
         first, last = spots[order[0]], spots[order[-1]]
