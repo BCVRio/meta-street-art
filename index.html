@@ -27,7 +27,7 @@
     .hidden { display: none !important; }
 
     /* ---------- Opening title (js/splash.js) ---------- */
-    html.splash-open #top, html.splash-open #gps-chip, html.splash-open #sheet { visibility: hidden; }
+    html.splash-open #top, html.splash-open #gps-chip, html.splash-open #sheet, html.splash-open #sheet-tab { visibility: hidden; }
     #splash { position: fixed; inset: 0; z-index: 3000; overflow: hidden; background: #050508; color: #fff; }
     #splash .splash-art { position: absolute; inset: -24px; background: #050508 url('assets/title-keyart.webp') center / cover no-repeat;
       transform: translate(var(--px, 0), var(--py, 0)) scale(1.28); filter: blur(14px) brightness(.4);
@@ -92,7 +92,7 @@
     #top { position: fixed; z-index: 1000; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top));
       display: flex; gap: 8px; align-items: center; pointer-events: none; }
     #top > * { pointer-events: auto; }
-    #brand #city-btn { display: block; margin-top: 6px; padding: 4px 10px; font-size: 13px; }
+    #brand #city-btn { display: inline-block; margin-top: 6px; padding: 5px 12px; font-size: 13px; text-shadow: none; font-weight: 600; }
     #city-picker { position: fixed; z-index: 2500; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); bottom: calc(12px + env(safe-area-inset-bottom));
       border-radius: 18px; padding: 12px; display: flex; flex-direction: column; }
     #city-picker header { display: flex; gap: 8px; }
@@ -102,19 +102,30 @@
     #city-list button b { display: block; } #city-list button small { color: var(--muted); }
     .tour.more { text-align: center; color: var(--accent); font-weight: 600; }
     .glass { background: rgba(14,14,20,.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); }
-    #brand { padding: 8px 14px; border-radius: 14px; flex: 1; min-width: 0; }
+    #brand { padding: 4px 2px; flex: 1; min-width: 0; text-shadow: 0 1px 2px #000, 0 0 14px rgba(0,0,0,.9); }
     #brand small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 2.5px; color: var(--accent-2); }
-    #brand b { font-size: 19px; letter-spacing: -.3px; }
+    #brand b { font-size: 22px; letter-spacing: -.3px; }
+    #top { align-items: flex-start; }
+    .round[aria-pressed="false"] { opacity: .55; }
     #brand b span { color: var(--accent); }
     .round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; flex: none; }
     .round[aria-pressed="true"] { border-color: var(--accent); }
-    #gps-chip { position: fixed; z-index: 1000; left: 12px; top: calc(112px + env(safe-area-inset-top)); padding: 5px 10px;
+    #gps-chip { position: fixed; z-index: 1000; left: 12px; top: calc(100px + env(safe-area-inset-top)); padding: 5px 10px;
       border-radius: 999px; font-size: 12px; color: var(--muted); }
 
     /* Bottom sheet */
     #sheet { position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0; max-height: 58vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
-      border-radius: 20px 20px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); border-bottom: 0; }
-    #sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 10px; }
+      border-radius: 20px 20px 0 0; padding: 0 16px calc(16px + env(safe-area-inset-bottom)); border-bottom: 0;
+      background: rgba(14,14,20,.6); transition: transform .3s cubic-bezier(.2,.8,.2,1); touch-action: pan-y; }
+    #sheet .grab-area { position: sticky; top: 0; z-index: 2; padding: 10px 0 6px; margin: 0 -16px; background: linear-gradient(rgba(14,14,20,.9), rgba(14,14,20,0)); cursor: grab; }
+    #sheet .grab { width: 44px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.45); margin: 0 auto; }
+    #sheet.dragging { transition: none; }
+    #sheet.hidden-sheet { transform: translateY(100%) !important; }
+    #sheet-tab { position: fixed; z-index: 1001; left: 50%; transform: translateX(-50%) translateY(calc(100% + 20px)); bottom: calc(10px + env(safe-area-inset-bottom));
+      padding: 10px 18px; border-radius: 999px; background: rgba(14,14,20,.7); color: #fff; font-weight: 600; transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+    #sheet-tab.show { transform: translateX(-50%) translateY(0); }
+    .spot, .tour { background: rgba(31,31,40,.75); }
+    .tour { background: linear-gradient(135deg, rgba(255,61,127,.28), rgba(61,214,255,.14)); }
     h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin: 14px 0 8px; }
     h2:first-of-type { margin-top: 2px; }
     .tours { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
@@ -187,7 +198,8 @@
 <div id="map"></div>
 
 <div id="top">
-  <div id="brand" class="glass"><small>BCVR IMMERSIVE</small><b>Spray<span>Path</span></b><button id="city-btn" class="chip">London ▾</button></div>
+  <div id="brand"><small>BCVR IMMERSIVE</small><b>Spray<span>Path</span></b><button id="city-btn" class="chip glass">London ▾</button></div>
+  <button id="opt-voice" class="round glass" title="Voice directions" aria-label="Voice directions" aria-pressed="true">🔊</button>
   <button id="btn-locate" class="round glass" title="Centre on me" aria-label="Centre on me">◎</button>
 </div>
 <div id="gps-chip" class="glass">Finding your location…</div>
@@ -197,8 +209,9 @@
   <div id="city-list"></div>
 </section>
 
+<button id="sheet-tab" class="glass" aria-label="Show tours and spots">▲ Tours &amp; spots</button>
 <section id="sheet" class="glass">
-  <div class="grab"></div>
+  <div class="grab-area"><div class="grab"></div></div>
 
   <!-- Browse -->
   <div id="browse">
@@ -207,7 +220,6 @@
     <h2 id="spots-h">Nearest street art</h2>
     <div id="spots"></div>
     <div class="settings">
-      <button class="chip" id="opt-voice" aria-pressed="true">🔊 Voice directions</button>
       <button class="chip" id="opt-demo" aria-pressed="false">🧪 Demo walk</button>
     </div>
     <p class="credit">Map data © OpenStreetMap contributors · Walking routes: OSRM (FOSSGIS) · A BCVR Immersive experience</p>

@@ -111,7 +111,7 @@ window.DATA.ready(function () {
   // Centre a point in the part of the map you can see (above the bottom panel).
   function centreOn(ll, zoom, animate) {
     zoom = zoom || map.getZoom();
-    var sheetH = $('sheet').offsetHeight || 0;
+    var sheetH = sheetHidden ? 0 : ($('sheet').offsetHeight || 0);
     var pt = map.project(ll, zoom).add([0, sheetH / 2]);
     map.setView(map.unproject(pt, zoom), zoom, { animate: !!animate });
   }
@@ -351,9 +351,10 @@ window.DATA.ready(function () {
   // ---------- Browse ----------
   function syncSettings() {
     $('opt-voice').setAttribute('aria-pressed', opts.voice);
+    $('opt-voice').textContent = opts.voice ? '🔊' : '🔇';
     $('opt-demo').setAttribute('aria-pressed', opts.demo);
   }
-  $('opt-voice').onclick = function () { opts.voice = !opts.voice; save('voice', opts.voice); syncSettings(); if (opts.voice) say('Voice directions on.', { interrupt: true }); };
+  $('opt-voice').onclick = function () { opts.voice = !opts.voice; save('voice', opts.voice); syncSettings(); if (opts.voice) say('Voice directions on.', { interrupt: true }); else speaker.cancel(); };
   $('opt-demo').onclick = function () {
     opts.demo = !opts.demo; save('demo', opts.demo); syncSettings();
     centredOnce = false;
@@ -419,6 +420,34 @@ window.DATA.ready(function () {
     }
     $('spots-h').textContent = live ? 'Nearest street art' : 'Street art in ' + DATA.current().name;
   }
+
+  // ---------- Bottom sheet: swipe down to hide ----------
+  var sheetHidden = false, sheet = $('sheet');
+  function setSheet(hidden) {
+    sheetHidden = hidden;
+    sheet.classList.toggle('hidden-sheet', hidden);
+    $('sheet-tab').classList.toggle('show', hidden);
+    sheet.style.transform = '';
+  }
+  (function () {
+    var y0 = null, dy = 0, dragging = false;
+    sheet.addEventListener('touchstart', function (e) { y0 = e.touches[0].clientY; dy = 0; dragging = sheet.scrollTop <= 0; }, { passive: true });
+    sheet.addEventListener('touchmove', function (e) {
+      if (y0 === null || !dragging) return;
+      dy = e.touches[0].clientY - y0;
+      if (dy > 0) { sheet.classList.add('dragging'); sheet.style.transform = 'translateY(' + dy + 'px)'; if (e.cancelable) e.preventDefault(); }
+    }, { passive: false });
+    sheet.addEventListener('touchend', function () {
+      sheet.classList.remove('dragging');
+      if (dragging && dy > 70) setSheet(true); else sheet.style.transform = '';
+      y0 = null; dragging = false;
+    });
+    var ty = null;
+    $('sheet-tab').addEventListener('touchstart', function (e) { ty = e.touches[0].clientY; }, { passive: true });
+    $('sheet-tab').addEventListener('touchmove', function (e) { if (ty !== null && ty - e.touches[0].clientY > 30) { setSheet(false); ty = null; } }, { passive: true });
+    $('sheet-tab').onclick = function () { setSheet(false); };
+    $('sheet').querySelector('.grab-area').onclick = function () { setSheet(true); };
+  })();
 
   // ---------- Start ----------
   syncSettings(); cityLabel();
