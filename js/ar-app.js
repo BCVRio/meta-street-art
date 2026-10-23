@@ -14,7 +14,7 @@
   var params = new URLSearchParams(location.search);
   var $ = function (id) { return document.getElementById(id); };
   var EYE = 1.3;                       // phone height above the pavement (held at chest height, tilted down)
-  var DOT_SPACING = 1.2, DOT_START = 1.6, DOT_FADE_IN = 1.4, DOT_RANGE = 40, MAX_DOTS = 40;
+  var DOT_SPACING = 1.2, DOT_START = 1.6, DOT_FADE_IN = 1.4, DOT_RANGE = 30, MAX_DOTS = 26;
   var SNAP_MAX = 30;                   // within this many metres of the route, lock your position onto it
   var GUIDE_LOOKAHEAD = 12;            // the arrow points this far along the route
   var ARRIVE_RADIUS = 20;
