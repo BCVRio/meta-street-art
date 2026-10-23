@@ -269,8 +269,10 @@ window.DATA.ready(function () {
     if (!trip.route && !trip.routing && !trip.rerouteAt) { reroute(true); return; }
 
     var spot = currentSpot(), toSpot = N.dist(pos, spot);
-    if (toSpot < 25) { arrive(spot); return; }
     var steps = trip.route && trip.route.legs[0].steps;
+    // Arrived: close to the wall, or standing at the end of the route (the road can be 20-40 m from the wall).
+    var atEnd = steps && N.dist(pos, N.ll(steps[steps.length - 1].maneuver.location)) < 12;
+    if (toSpot < 25 || (atEnd && toSpot < 60)) { arrive(spot); return; }
     if (steps) {
       while (trip.step < steps.length - 1 && N.dist(pos, N.ll(steps[trip.step].maneuver.location)) < 15) trip.step++;
       var s = steps[trip.step], dNext = N.dist(pos, N.ll(s.maneuver.location));

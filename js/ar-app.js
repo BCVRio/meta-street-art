@@ -169,7 +169,8 @@
     if (!nav.route && !nav.routing && !nav.rerouteAt) { requestRoute(true); return; }
     if (state.arrived) return;
     var toSpot = N.dist(state.pos, state.target);
-    if (toSpot < ARRIVE_RADIUS) {
+    var atEnd = nav.steps && N.dist(state.pos, N.ll(nav.steps[nav.steps.length - 1].maneuver.location)) < 12;
+    if (toSpot < ARRIVE_RADIUS || (atEnd && toSpot < 60)) {    // the road can be 20-40 m from the wall
       state.arrived = true;
       N.buzz([200, 100, 200]);
       speaker.say("You've arrived. " + state.target.blurb, { interrupt: true });

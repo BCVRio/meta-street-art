@@ -6,7 +6,10 @@ street_art. Anyone can add a wall at openstreetmap.org, and it appears here on t
 
 ## 1. Download from Overpass
 
-Two queries, chunked by bounding box (roughly 10° × 20° over land), merged into:
+    python3 -I tools/data/fetch-overpass.py /path/to/raw
+
+One request at a time, seven continent-sized chunks, patient retries across mirrors (the public Overpass
+servers are often overloaded; this can take an hour or more). It writes two files:
 
 - `artwork.json`: `nwr["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art|stencil|paste_up",i]` → `out center tags;`
 - `cities.json`: `node["place"~"^(city|town)$"](if:number(t["population"])>=100000)` → `out tags;`
