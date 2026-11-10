@@ -159,7 +159,7 @@
     track.at = now; track.cache = out;
     return out;
   }
-  window.sprayDebug = { nav: nav, anchor: function () { return userAnchor(); }, local: function () { return toLocal(state.pos); } };
+  window.sprayDebug = { nav: nav, anchor: function () { return userAnchor(); }, local: function () { return toLocal(state.pos); }, reanchor: function () { reanchor(); } };
 
   // Turn-by-turn, the same rules as the map page.
   function onPosition() {
@@ -310,7 +310,7 @@
       state.headingSrc = heading === null ? '' : src;
       if (heading !== null && level) {
         var target = camYaw + heading * Math.PI / 180;
-        if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * (1 - Math.exp(-dt / 0.6));
+        if (this.snap) o.rotation.y = target; else o.rotation.y += angleDiff(target, o.rotation.y) * (1 - Math.exp(-dt / 0.9));
       }
       // Slide so your (route-snapped) position is under the camera. With world tracking the camera moves
       // through the scene as you walk, so the target is camera position minus the rotated route point; the
@@ -323,7 +323,7 @@
       this.v.set(u.x, 0, u.z).applyAxisAngle(this.up || (this.up = new THREE.Vector3(0, 1, 0)), o.rotation.y);
       var tx = cp.x - this.v.x, tz = cp.z - this.v.z, ty = this.camY - EYE;
       if (this.snap) { o.position.set(tx, ty, tz); this.snap = heading === null; }
-      else { var k = 1 - Math.exp(-dt / 0.2); o.position.x += (tx - o.position.x) * k; o.position.z += (tz - o.position.z) * k; o.position.y = ty; }
+      else { var k = 1 - Math.exp(-dt / 0.35); o.position.x += (tx - o.position.x) * k; o.position.z += (tz - o.position.z) * k; o.position.y = ty; }
       state.camPos = cp;
     },
   });
@@ -436,16 +436,73 @@
     } else {
       cam.setAttribute('zappar-camera', { poseMode: 'attitude' });
     }
-    sc.addEventListener('loaded', function () {
-      // The world starts off with its ground EYE below the camera; in attitude mode the camera never moves.
+    if (tracking === 'world') steadyCamera(cam);
+  }
+
+  // Steadies the tracked camera POSITION (rotation is left alone: it comes from the gyroscope and is solid).
+  // Visual tracking mistakes a passing bus or person for the phone moving, which shows as a jolt of every dot.
+  // Walking is slow, so: a one-frame jump of more than 60 cm is held back unless it persists (tracking really
+  // re-based), speed is capped at 3 m/s, and what remains is low-pass filtered (0.3 s). Applied after Zappar
+  // has written the camera matrix each frame (its 'zappar-frame-update' event), before the scene renders.
+  var steady = { p: null, q: new THREE.Quaternion(), sc: new THREE.Vector3(), raw: new THREE.Vector3(), spikes: 0, last: 0, skip: 0 };
+  function steadyCamera(camEl) {
+    camEl.addEventListener('zappar-frame-update', function () {
+      var o = camEl.object3D, now = performance.now(), dt = Math.min(0.1, steady.last ? (now - steady.last) / 1000 : 0.016);
+      steady.last = now;
+      o.matrix.decompose(steady.raw, steady.q, steady.sc);
+      if (steady.skip > 0) { steady.skip--; steady.p = null; }          // just re-anchored: accept the new frame
+      if (!steady.p) { steady.p = steady.raw.clone(); return; }
+      var d = steady.raw.distanceTo(steady.p);
+      if (d > 0.6) {
+        if (++steady.spikes < 15) { o.matrix.compose(steady.p, steady.q, steady.sc); state.steadied = (state.steadied || 0) + 1; return; }
+        steady.p.copy(steady.raw); steady.spikes = 0;                 // persisted for ~15 frames: it is real
+      } else {
+        steady.spikes = 0;
+        var step = Math.min(d, 3 * dt);                                // speed cap
+        if (d > 1e-6) steady.p.lerp(steady.raw, Math.min(1, step / d) * (1 - Math.exp(-dt / 0.3)));
+      }
+      o.matrix.compose(steady.p, steady.q, steady.sc);
     });
   }
   function tickTracking() {
-    if (tracking !== 'world' || anchorLocked || state.cameraFrames < 1) return;
-    if (!lockAt) lockAt = Date.now() + 1500;
-    if (Date.now() < lockAt) return;
-    $('anchor').setAttribute('zappar-instant', 'placementMode', false);
-    anchorLocked = true;
+    if (tracking !== 'world' || state.cameraFrames < 1) return;
+    if (!anchorLocked) {
+      if (!lockAt) lockAt = Date.now() + 1500;
+      if (Date.now() < lockAt) return;
+      $('anchor').setAttribute('zappar-instant', 'placementMode', false);
+      anchorLocked = true; return;
+    }
+    // Instant tracking is happiest near its anchor: once you have walked ~12 m away, quietly drop a new anchor
+    // ahead and shift the world by the same amount, so nothing visibly moves.
+    var cp = state.camPos;
+    if (cp && Math.hypot(cp.x, cp.z) > 12) reanchor();
+  }
+  var reanchorAt = 0;
+  function reanchor() {
+    if (Date.now() - reanchorAt < 4000) return;
+    reanchorAt = Date.now();
+    var camEl = $('cam'), anchorEl = $('anchor'), w = document.querySelector('[sp-world]');
+    var comp = anchorEl.components['zappar-instant'], wc = w && w.components['sp-world'];
+    if (!comp || !comp.trackerGroup || !wc) return;
+    var before = new THREE.Vector3(), beforeQ = new THREE.Quaternion(), tmp = new THREE.Vector3();
+    camEl.object3D.matrix.decompose(before, beforeQ, tmp);
+    var yawBefore = Math.atan2(2 * (beforeQ.w * beforeQ.y + beforeQ.x * beforeQ.z), 1 - 2 * (beforeQ.y * beforeQ.y + beforeQ.z * beforeQ.z));
+    comp.trackerGroup.instantTracker.setAnchorPoseFromCameraOffset(0, 0, -3);
+    steady.skip = 2;
+    // After Zappar's next frame the camera sits at ~(0, 0, 3) facing -Z in the new anchor frame: move the world with it.
+    camEl.addEventListener('zappar-frame-update', function once() {
+      camEl.removeEventListener('zappar-frame-update', once);
+      var after = new THREE.Vector3(), afterQ = new THREE.Quaternion();
+      camEl.object3D.matrix.decompose(after, afterQ, tmp);
+      var yawAfter = Math.atan2(2 * (afterQ.w * afterQ.y + afterQ.x * afterQ.z), 1 - 2 * (afterQ.y * afterQ.y + afterQ.z * afterQ.z));
+      var dYaw = angleDiff(yawAfter, yawBefore), wo = w.object3D;
+      // rotate the world about the old camera position by dYaw, then translate by the camera's shift
+      var rel = wo.position.clone().sub(before).applyAxisAngle(new THREE.Vector3(0, 1, 0), dYaw);
+      wo.position.copy(after).add(rel);
+      wo.rotation.y += dYaw;
+      if (wc.camY !== undefined) wc.camY += after.y - before.y;
+      state.reanchors = (state.reanchors || 0) + 1;
+    });
   }
   function relock() {          // "Reset tracking": drop the anchor again 3 m ahead of where the camera is now
     if (tracking !== 'world') return;
@@ -479,7 +536,7 @@
     tickTracking();
     var cpos = state.camPos;
     row('st-track', tracking === 'world' ? (anchorLocked ? true : null) : true,
-      tracking === 'world' ? (anchorLocked ? 'world tracking' + (cpos ? ' · camera at ' + cpos.x.toFixed(1) + ', ' + cpos.y.toFixed(1) + ', ' + cpos.z.toFixed(1) : '') : 'world tracking · placing anchor…')
+      tracking === 'world' ? (anchorLocked ? 'world tracking' + (cpos ? ' · camera at ' + cpos.x.toFixed(1) + ', ' + cpos.y.toFixed(1) + ', ' + cpos.z.toFixed(1) : '') + (state.steadied ? ' · ' + state.steadied + ' jolts held' : '') + (state.reanchors ? ' · re-anchored ' + state.reanchors + '×' : '') : 'world tracking · placing anchor…')
                            : 'attitude (rotation only)');
     row('st-route', nav.route ? true : null, state.arrived ? 'arrived' : state.routeMsg);
     row('st-target', state.target && state.pos ? true : null, state.target ? state.target.name + (state.pos ? ' · ' + N.fmtDist(N.dist(state.pos, state.target)) : '') : 'nearest spot');
