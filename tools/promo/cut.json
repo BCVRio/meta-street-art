@@ -1,0 +1,133 @@
+{
+ "segments": [
+  {
+   "clip": "clips/s1.mp4",
+   "start": 0,
+   "len": 6,
+   "caps": [
+    [
+     "cap/c1.png",
+     0.3,
+     2.9
+    ],
+    [
+     "cap/c2.png",
+     3.0,
+     5.8
+    ]
+   ],
+   "vol": 0.6
+  },
+  {
+   "clip": "/root/.claude/uploads/92b87a48-f7d3-5d81-a639-915fb7ed3f34/9f64fbc6-VIDEO-2026-11-10-17-49-10.mov",
+   "start": 75.0,
+   "len": 4.5,
+   "caps": [
+    [
+     "cap/c3.png",
+     0.3,
+     4.3
+    ]
+   ],
+   "phone": true,
+   "audio": false
+  },
+  {
+   "clip": "/root/.claude/uploads/92b87a48-f7d3-5d81-a639-915fb7ed3f34/9f64fbc6-VIDEO-2026-11-10-17-49-10.mov",
+   "start": 88.0,
+   "len": 5,
+   "caps": [
+    [
+     "cap/c4.png",
+     0.3,
+     4.8
+    ]
+   ],
+   "phone": true,
+   "audio": false
+  },
+  {
+   "clip": "/root/.claude/uploads/92b87a48-f7d3-5d81-a639-915fb7ed3f34/7248c736-VIDEO-2026-11-10-17-49-10.mov",
+   "start": 23.0,
+   "len": 4,
+   "caps": [
+    [
+     "cap/c8.png",
+     0.3,
+     3.8
+    ]
+   ],
+   "phone": true,
+   "audio": false
+  },
+  {
+   "clip": "clips/s3.mp4",
+   "start": 0,
+   "len": 5,
+   "caps": [
+    [
+     "cap/c6.png",
+     0.4,
+     4.8
+    ]
+   ],
+   "vol": 0.6
+  },
+  {
+   "clip": "/root/.claude/uploads/92b87a48-f7d3-5d81-a639-915fb7ed3f34/9f64fbc6-VIDEO-2026-11-10-17-49-10.mov",
+   "start": 5.0,
+   "len": 3,
+   "caps": [
+    [
+     "cap/c9.png",
+     0.2,
+     2.8
+    ]
+   ],
+   "phone": true,
+   "audio": false
+  },
+  {
+   "clip": "clips/s6.mp4",
+   "start": 2,
+   "len": 5.5,
+   "caps": [
+    [
+     "cap/c7.png",
+     0.4,
+     3.6
+    ]
+   ],
+   "vol": 0.6
+  },
+  {
+   "clip": "endcard.mp4",
+   "start": 0,
+   "len": 6.5,
+   "caps": [],
+   "audio": false
+  }
+ ],
+ "bezel": "bezel.png",
+ "phone_w": 520,
+ "phone_x": 280,
+ "phone_y": 740,
+ "audio": [
+  {
+   "file": "beat.wav",
+   "at": 0,
+   "vol": 0.5,
+   "music": true
+  },
+  {
+   "file": "sfxlogo.wav",
+   "at": 32.9,
+   "vol": 0.85
+  },
+  {
+   "file": "vo-trim.wav",
+   "at": 34.7,
+   "vol": 1.0
+  }
+ ]
+}
