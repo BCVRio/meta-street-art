@@ -50,6 +50,9 @@
       border-radius: 16px; border-left: 5px solid #ff3d7f; }
     #instr b { display: block; font-size: 20px; line-height: 1.2; }
     #instr span { display: block; color: #c9c9d4; font-size: 14px; margin-top: 2px; }
+    #ground-hint { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); white-space: nowrap; top: 50%; padding: 12px 18px;
+      border-radius: 999px; font-weight: 600; background: rgba(255,61,127,.22); border-color: #ff3d7f; animation: hint-pulse 1.6s infinite; }
+    @keyframes hint-pulse { 50% { opacity: .55; } }
     #compass-hint { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); white-space: nowrap;
       bottom: calc(76px + env(safe-area-inset-bottom)); padding: 10px 16px;
       border-radius: 999px; color: #fff; font: inherit; font-weight: 600; background: rgba(61,214,255,.25); border-color: #3dd6ff; }
@@ -73,7 +76,11 @@
   <!-- Camera feed + pose. js/ar-app.js sets pose-mode: 'anchor-origin' with the instant-tracking anchor below
        (world tracking: the camera moves through the scene as you walk) or 'attitude' (rotation only). -->
   <a-entity id="cam" camera zappar-camera="pose-mode: attitude"></a-entity>
-  <a-entity id="anchor" zappar-instant="placement-mode: false; enabled: true"></a-entity>
+  <!-- World tracking with a real ground plane (default): the ground anchor becomes the world origin, so y = 0
+       is the actual pavement and the camera's y is the phone's real height. zappar-ground needs a child with
+       zappar-world-placement. Instant tracking (no ground estimate) is the second mode; attitude the third. -->
+  <a-entity id="ground" zappar-ground="enabled: false"><a-entity zappar-world-placement></a-entity></a-entity>
+  <a-entity id="anchor" zappar-instant="placement-mode: false; enabled: false"></a-entity>
 
   <a-entity light="type: hemisphere; color: #ffffff; groundColor: #444466; intensity: 2.2"></a-entity>
   <a-entity light="type: directional; intensity: 1.4" position="2 5 3"></a-entity>
@@ -92,6 +99,7 @@
 <a id="back" class="glass" href="index.html?nosplash=1">← Map</a>
 <div id="instr" class="glass"><b id="instr-1">Starting AR…</b><span id="instr-2"></span></div>
 <button id="compass-hint" class="glass hidden">🧭 Tap to turn on the compass</button>
+<div id="ground-hint" class="glass hidden">📱 Point at the pavement and move the phone slowly…</div>
 <div id="demo-badge" class="glass hidden">🧪 Demo walk · simulated movement
   <button id="real-gps">Use my real GPS</button></div>
 

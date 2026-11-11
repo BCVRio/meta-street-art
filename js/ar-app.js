@@ -29,12 +29,13 @@
 
   var spotById = {};
   var demo = params.has('demo');
-  // Tracking: 'world' = Zappar instant world tracking (the camera moves through the scene, so the dots stay
-  // put on the pavement as you walk and pan); 'attitude' = rotation only (demo walks, tests, fallback).
+  // Tracking: 'world' = Zappar world tracking with a real ground plane (the camera moves through the scene
+  // and y = 0 is the actual pavement); 'instant' = instant world tracking (6DoF, ground assumed EYE below the
+  // phone); 'attitude' = rotation only (demo walks, tests, fallback).
   var tracking = params.get('track') || (demo ? 'attitude' : 'world');
   try { if (!params.get('track') && localStorage.getItem('spraypath.track')) tracking = localStorage.getItem('spraypath.track'); } catch (e) {}
-  if (tracking !== 'world' && tracking !== 'attitude') tracking = 'world';
-  state.tracking = tracking;
+  if (['world', 'instant', 'attitude'].indexOf(tracking) < 0) tracking = 'world';
+  state.tracking = tracking; state.ground = null;     // 'init' | 'good' | 'limited' while world tracking
 
   // ---------- Voice (same on/off setting as the map page) ----------
   var voiceOn = true;
@@ -321,7 +322,8 @@
       var cp = this.cp;
       if (this.camY === undefined) this.camY = cp.y; else this.camY += (cp.y - this.camY) * (1 - Math.exp(-dt / 3));
       this.v.set(u.x, 0, u.z).applyAxisAngle(this.up || (this.up = new THREE.Vector3(0, 1, 0)), o.rotation.y);
-      var tx = cp.x - this.v.x, tz = cp.z - this.v.z, ty = this.camY - EYE;
+      // Ground: the tracked ground plane when world tracking has it, else EYE below the camera's height.
+      var tx = cp.x - this.v.x, tz = cp.z - this.v.z, ty = state.ground === 'good' ? 0 : this.camY - EYE;
       if (this.snap) { o.position.set(tx, ty, tz); this.snap = heading === null; }
       else { var k = 1 - Math.exp(-dt / 0.35); o.position.x += (tx - o.position.x) * k; o.position.z += (tz - o.position.z) * k; o.position.y = ty; }
       state.camPos = cp;
@@ -351,7 +353,7 @@
     },
     tick: function (time) {
       var core = this.core, glow = this.glow;
-      if (!nav.pts || !state.pos || state.arrived) { core.count = glow.count = 0; return; }
+      if (!nav.pts || !state.pos || state.arrived || (tracking === 'world' && state.ground !== 'good' && state.ground !== 'limited')) { core.count = glow.count = 0; return; }
       var a = userAnchor(), t = time / 1000, s0 = a.s !== null ? a.s : routeProgress(toLocal(state.pos)).s, total = nav.cum[nav.cum.length - 1];
       var phase = (t * 1.1) % DOT_SPACING;          // dots creep forward along the path
       var pulse = (t * 9) % (DOT_RANGE + 12);       // a bright wave runs ahead every few seconds
@@ -428,15 +430,31 @@
   // anchor-origin). The anchor is dropped ~3 m ahead once the camera has been running for a moment; after that
   // the scene stays put as you walk. Attitude mode: the camera sits at the origin and only rotates.
   var anchorLocked = false, lockAt = 0;
+  var Q_GOOD = 1, Q_LIMITED = 2, groundWaitFrom = 0;
   function setupTracking() {
-    var sc = document.querySelector('a-scene'), cam = $('cam'), anchor = $('anchor');
+    var sc = document.querySelector('a-scene'), cam = $('cam'), anchor = $('anchor'), ground = $('ground');
     if (tracking === 'world') {
-      anchor.setAttribute('zappar-instant', { placementMode: true, anchorPoseOffset: { x: 0, y: 0, z: -3 } });
+      ground.setAttribute('zappar-ground', 'enabled', true);
+      cam.setAttribute('zappar-camera', { poseMode: 'anchor-origin' });
+      state.ground = 'init';
+      ground.addEventListener('zappar-initializing', function () { state.ground = 'init'; });
+      ground.addEventListener('zappar-quality-good', function () { state.ground = 'good'; });
+      ground.addEventListener('zappar-quality-orientation-only', function () { state.ground = 'limited'; });
+      var hook = function () {
+        var comp = ground.components['zappar-ground'];
+        if (!comp || !comp.trackerGroup) return setTimeout(hook, 200);
+        // The ground anchor becomes the camera's origin: the camera then moves in ground space, y up from the pavement.
+        sc.systems['zappar-camera'].camera.setPoseModeAnchorOrigin(comp.trackerGroup.worldTracker.groundAnchor);
+        anchorLocked = true;
+      };
+      if (sc.hasLoaded) hook(); else sc.addEventListener('loaded', hook);
+    } else if (tracking === 'instant') {
+      anchor.setAttribute('zappar-instant', { placementMode: true, enabled: true, anchorPoseOffset: { x: 0, y: 0, z: -3 } });
       cam.setAttribute('zappar-camera', { poseMode: 'anchor-origin', poseAnchorOrigin: '#anchor' });
     } else {
       cam.setAttribute('zappar-camera', { poseMode: 'attitude' });
     }
-    if (tracking === 'world') steadyCamera(cam);
+    if (tracking !== 'attitude') steadyCamera(cam);
   }
 
   // Steadies the tracked camera POSITION (rotation is left alone: it comes from the gyroscope and is solid).
@@ -465,7 +483,20 @@
     });
   }
   function tickTracking() {
-    if (tracking !== 'world' || state.cameraFrames < 1) return;
+    if (tracking === 'world') {
+      var q = state.ground, comp = $('ground').components['zappar-ground'];
+      if (comp && comp.trackerGroup) {
+        var wq = comp.trackerGroup.worldTracker.quality;
+        state.ground = wq === Q_GOOD ? 'good' : wq === Q_LIMITED ? 'limited' : 'init';
+        // No ground after 12 s of camera (plain surface, old phone): draw the dots at the assumed height anyway.
+        if (state.ground === 'init' && state.cameraFrames > 0) {
+          if (!groundWaitFrom) groundWaitFrom = Date.now();
+          if (Date.now() - groundWaitFrom > 12000) state.ground = 'limited';
+        }
+      }
+      return;
+    }
+    if (tracking !== 'instant' || state.cameraFrames < 1) return;
     if (!anchorLocked) {
       if (!lockAt) lockAt = Date.now() + 1500;
       if (Date.now() < lockAt) return;
@@ -479,7 +510,7 @@
   }
   var reanchorAt = 0;
   function reanchor() {
-    if (Date.now() - reanchorAt < 4000) return;
+    if (tracking !== 'instant' || Date.now() - reanchorAt < 4000) return;
     reanchorAt = Date.now();
     var camEl = $('cam'), anchorEl = $('anchor'), w = document.querySelector('[sp-world]');
     var comp = anchorEl.components['zappar-instant'], wc = w && w.components['sp-world'];
@@ -504,8 +535,15 @@
       state.reanchors = (state.reanchors || 0) + 1;
     });
   }
-  function relock() {          // "Reset tracking": drop the anchor again 3 m ahead of where the camera is now
-    if (tracking !== 'world') return;
+  function relock() {          // "Reset tracking": re-initialise the ground, or drop the instant anchor again
+    if (tracking === 'world') {
+      var comp = $('ground').components['zappar-ground'];
+      if (comp && comp.trackerGroup) comp.trackerGroup.worldTracker.reset();
+      steady.p = null; state.ground = 'init';
+      var w0 = document.querySelector('[sp-world]'); if (w0 && w0.components['sp-world']) w0.components['sp-world'].camY = undefined;
+      return;
+    }
+    if (tracking !== 'instant') return;
     anchorLocked = false; lockAt = Date.now() + 400;
     $('anchor').setAttribute('zappar-instant', 'placementMode', true);
     var w = document.querySelector('[sp-world]'); if (w && w.components['sp-world']) { w.components['sp-world'].snap = true; w.components['sp-world'].camY = undefined; }
@@ -535,9 +573,12 @@
       state.pos ? (state.pos.demo ? 'demo walk' : '±' + Math.round(state.pos.acc) + ' m') : state.gpsErr ? state.gpsErr : 'waiting');
     tickTracking();
     var cpos = state.camPos;
-    row('st-track', tracking === 'world' ? (anchorLocked ? true : null) : true,
-      tracking === 'world' ? (anchorLocked ? 'world tracking' + (cpos ? ' · camera at ' + cpos.x.toFixed(1) + ', ' + cpos.y.toFixed(1) + ', ' + cpos.z.toFixed(1) : '') + (state.steadied ? ' · ' + state.steadied + ' jolts held' : '') + (state.reanchors ? ' · re-anchored ' + state.reanchors + '×' : '') : 'world tracking · placing anchor…')
-                           : 'attitude (rotation only)');
+    var camTxt = (cpos ? ' · camera at ' + cpos.x.toFixed(1) + ', ' + cpos.y.toFixed(1) + ', ' + cpos.z.toFixed(1) : '') + (state.steadied ? ' · ' + state.steadied + ' jolts held' : '');
+    row('st-track', tracking === 'world' ? (state.ground === 'good' ? true : null) : tracking === 'instant' ? (anchorLocked ? true : null) : true,
+      tracking === 'world' ? 'world tracking · ground ' + (state.ground === 'good' ? 'found (phone ' + (cpos ? cpos.y.toFixed(2) : '?') + ' m up)' : state.ground === 'limited' ? 'lost · rotation only' : 'initialising…') + camTxt
+      : tracking === 'instant' ? (anchorLocked ? 'instant tracking' + camTxt + (state.reanchors ? ' · re-anchored ' + state.reanchors + '×' : '') : 'instant tracking · placing anchor…')
+      : 'attitude (rotation only)');
+    $('ground-hint').classList.toggle('hidden', !(tracking === 'world' && state.cameraFrames > 0 && state.ground !== 'good' && !state.arrived));
     row('st-route', nav.route ? true : null, state.arrived ? 'arrived' : state.routeMsg);
     row('st-target', state.target && state.pos ? true : null, state.target ? state.target.name + (state.pos ? ' · ' + N.fmtDist(N.dist(state.pos, state.target)) : '') : 'nearest spot');
     var txt = labelText();
@@ -557,9 +598,10 @@
   document.addEventListener('DOMContentLoaded', function () {
     setupTracking();
     $('track-reset').onclick = relock;
-    $('track-mode').onclick = function () { setTracking(tracking === 'world' ? 'attitude' : 'world'); };
-    $('track-mode').textContent = tracking === 'world' ? 'Switch to rotation-only tracking' : 'Switch to world tracking';
-    $('track-reset').classList.toggle('hidden', tracking !== 'world');
+    var next = { world: 'instant', instant: 'attitude', attitude: 'world' }, names = { world: 'ground tracking', instant: 'instant tracking', attitude: 'rotation-only' };
+    $('track-mode').onclick = function () { setTracking(next[tracking]); };
+    $('track-mode').textContent = 'Switch to ' + names[next[tracking]];
+    $('track-reset').classList.toggle('hidden', tracking === 'attitude');
     $('compass-btn').onclick = hookCompass;
     $('compass-hint').onclick = hookCompass;
     // iOS (and Zappar's App Clip) only give compass readings after a tap: ask on the first tap anywhere.
