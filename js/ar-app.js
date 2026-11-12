@@ -431,6 +431,32 @@
   // the scene stays put as you walk. Attitude mode: the camera sits at the origin and only rotates.
   var anchorLocked = false, lockAt = 0;
   var Q_GOOD = 1, Q_LIMITED = 2, groundWaitFrom = 0;
+
+  // Scan coach: full-screen card while the ground is being found (and again when tracking is lost for a while).
+  // Progress fills with time while scanning; "Ground found" shows for 1.5 s, then the card goes.
+  var scan = { shown: false, since: 0, foundAt: 0, lostSince: 0, skipped: false };
+  function showScan(title, text) {
+    $('scan-title').textContent = title; $('scan-text').textContent = text;
+    $('scan').classList.remove('hidden', 'found'); scan.shown = true; scan.since = Date.now(); scan.foundAt = 0;
+  }
+  function hideScan() { $('scan').classList.add('hidden'); scan.shown = false; }
+  function updateScanCoach() {
+    if (tracking !== 'world' || state.cameraFrames < 1 || state.arrived) { if (scan.shown) hideScan(); return; }
+    var now = Date.now();
+    if (state.ground === 'good') {
+      scan.lostSince = 0;
+      if (scan.shown && !scan.foundAt) { scan.foundAt = now; $('scan').classList.add('found'); $('scan-title').textContent = 'Ground found ✓'; $('scan-text').textContent = 'Follow the pink dots.'; $('scan-fill').style.width = '100%'; }
+      if (scan.shown && now - scan.foundAt > 1500) hideScan();
+      return;
+    }
+    if (scan.skipped) return;
+    if (state.ground === 'init' && !scan.shown) showScan('Scan the ground ahead', 'Point the phone at the pavement 2–3 m in front of you and sweep it slowly from side to side, then tilt up. This lets the app learn where the ground is, so the dots sit on it.');
+    if (state.ground === 'limited') {
+      if (!scan.lostSince) scan.lostSince = now;
+      if (!scan.shown && now - scan.lostSince > 3000) showScan('Tracking lost', 'Sweep the phone slowly across the pavement ahead to pick the ground up again. Plain or dark surfaces are harder: aim at kerbs, markings or textured paving.');
+    }
+    if (scan.shown && !scan.foundAt) $('scan-fill').style.width = Math.min(90, (now - scan.since) / 120) + '%';
+  }
   function setupTracking() {
     var sc = document.querySelector('a-scene'), cam = $('cam'), anchor = $('anchor'), ground = $('ground');
     if (tracking === 'world') {
@@ -491,7 +517,7 @@
         // No ground after 12 s of camera (plain surface, old phone): draw the dots at the assumed height anyway.
         if (state.ground === 'init' && state.cameraFrames > 0) {
           if (!groundWaitFrom) groundWaitFrom = Date.now();
-          if (Date.now() - groundWaitFrom > 12000) state.ground = 'limited';
+          if (Date.now() - groundWaitFrom > 20000 || scan.skipped) state.ground = 'limited';
         }
       }
       return;
@@ -578,7 +604,7 @@
       tracking === 'world' ? 'world tracking · ground ' + (state.ground === 'good' ? 'found (phone ' + (cpos ? cpos.y.toFixed(2) : '?') + ' m up)' : state.ground === 'limited' ? 'lost · rotation only' : 'initialising…') + camTxt
       : tracking === 'instant' ? (anchorLocked ? 'instant tracking' + camTxt + (state.reanchors ? ' · re-anchored ' + state.reanchors + '×' : '') : 'instant tracking · placing anchor…')
       : 'attitude (rotation only)');
-    $('ground-hint').classList.toggle('hidden', !(tracking === 'world' && state.cameraFrames > 0 && state.ground !== 'good' && !state.arrived));
+    updateScanCoach();
     row('st-route', nav.route ? true : null, state.arrived ? 'arrived' : state.routeMsg);
     row('st-target', state.target && state.pos ? true : null, state.target ? state.target.name + (state.pos ? ' · ' + N.fmtDist(N.dist(state.pos, state.target)) : '') : 'nearest spot');
     var txt = labelText();
@@ -598,6 +624,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     setupTracking();
     $('track-reset').onclick = relock;
+    $('scan-skip').onclick = function () { scan.skipped = true; hideScan(); if (state.ground !== 'good') state.ground = 'limited'; groundWaitFrom = 1; };
     var next = { world: 'instant', instant: 'attitude', attitude: 'world' }, names = { world: 'ground tracking', instant: 'instant tracking', attitude: 'rotation-only' };
     $('track-mode').onclick = function () { setTracking(next[tracking]); };
     $('track-mode').textContent = 'Switch to ' + names[next[tracking]];
