@@ -16,7 +16,7 @@
   var EYE = 1.3;                       // phone height above the pavement (held at chest height, tilted down)
   var DOT_SPACING = 0.8, DOT_START = 1.6, DOT_FADE_IN = 0.8, DOT_RANGE = 5, MAX_DOTS = 8;
   var SNAP_MAX = 30;                   // within this many metres of the route, lock your position onto it
-  var GUIDE_LOOKAHEAD = 12;            // the arrow points this far along the route
+  var GUIDE_LOOKAHEAD = 6;             // the arrow points this far along the route (just past the dot trail)
   var ARRIVE_RADIUS = 20;
   var angleDiff = function (a, b) { return Math.atan2(Math.sin(a - b), Math.cos(a - b)); };
 
@@ -33,7 +33,7 @@
   // and y = 0 is the actual pavement); 'instant' = instant world tracking (6DoF, ground assumed EYE below the
   // phone); 'attitude' = rotation only (demo walks, tests, fallback).
   var tracking = params.get('track') || (demo ? 'attitude' : 'world');
-  try { if (!params.get('track') && localStorage.getItem('spraypath.track')) tracking = localStorage.getItem('spraypath.track'); } catch (e) {}
+  try { if (!params.get('track') && localStorage.getItem('spraypath.track.v2')) tracking = localStorage.getItem('spraypath.track.v2'); } catch (e) {}
   if (['world', 'instant', 'attitude'].indexOf(tracking) < 0) tracking = 'world';
   state.tracking = tracking; state.ground = null;     // 'init' | 'good' | 'limited' while world tracking
 
@@ -105,12 +105,25 @@
     nav.routing = true; nav.rerouteAt = Date.now();
     state.routeMsg = 'finding a walking route…';
     var target = state.target;
+    // The map page already worked out this route: use it straight away (the dots snap to wherever you are on it),
+    // then refresh from the routing server in the background.
+    if (first && !nav.route) {
+      try {
+        var cached = JSON.parse(sessionStorage.getItem('spraypath.route.' + target.id) || 'null');
+        if (cached && Date.now() - cached.at < 30 * 60000) {
+          setRoute(cached.route); state.routeMsg = N.fmtDist(cached.route.distance) + ' walking route (from the map)';
+          speaker.say('Follow the pink dots. ' + N.stepText(nav.steps[Math.min(1, nav.steps.length - 1)]) + '.');
+          first = false;
+        }
+      } catch (e) {}
+    }
     N.fetchRoute(state.pos, target).then(function (route) {
       if (target !== state.target) return;
       setRoute(route);
       state.routeMsg = N.fmtDist(route.distance) + ' walking route';
       speaker.say(first ? 'Follow the pink dots. ' + N.stepText(nav.steps[0]) + '.' : 'Rerouting. ' + N.stepText(nav.steps[0]) + '.');
     }).catch(function (e) {
+      if (nav.route) { state.routeMsg = N.fmtDist(nav.route.distance) + ' walking route (from the map; refresh failed)'; return; }
       state.routeMsg = 'route unavailable (' + (e.message || e) + '), pointing straight';
       if (demo) { sim.path = [{ lat: target.lat, lng: target.lng }]; sim.i = 0; }
     }).then(function () { nav.routing = false; });
@@ -414,9 +427,14 @@
       if (!state.pos || !state.target || !state.headingSrc || state.arrived || !nav.origin) { arrow.visible = false; state.rel = null; return; }
 
       // Where to point, in the world's local frame, then into scene space via the world's rotation.
+      // The arrow follows the mapped route, like the dots: it points along the route a few metres ahead of
+      // your snapped position. Off the route (GPS > SNAP_MAX away) it points at the nearest point of the route
+      // to rejoin it; with no route at all it points straight at the artwork.
       var u = userAnchor(), aim;
-      if (nav.pts) aim = routeAt((u.s !== null ? u.s : routeProgress(u).s) + GUIDE_LOOKAHEAD);
-      else aim = toLocal(state.target);
+      if (nav.pts) {
+        if (u.s !== null) aim = routeAt(u.s + GUIDE_LOOKAHEAD);
+        else { var pr = routeProgress(u); aim = pr.off > 8 ? routeAt(pr.s) : routeAt(pr.s + GUIDE_LOOKAHEAD); }
+      } else aim = toLocal(state.target);
       var yaw = Math.atan2(-(aim.x - u.x), -(aim.z - u.z)) + worldEl.object3D.rotation.y;
       this.yaw = this.yaw === null ? yaw : this.yaw + angleDiff(yaw, this.yaw) * 0.15;
       arrow.visible = true;
@@ -575,7 +593,7 @@
     var w = document.querySelector('[sp-world]'); if (w && w.components['sp-world']) { w.components['sp-world'].snap = true; w.components['sp-world'].camY = undefined; }
   }
   function setTracking(mode) {
-    try { localStorage.setItem('spraypath.track', mode); } catch (e) {}
+    try { localStorage.setItem('spraypath.track.v2', mode); } catch (e) {}
     var u = new URL(location.href); u.searchParams.set('track', mode); location.href = u.toString();
   }
 

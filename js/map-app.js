@@ -284,6 +284,8 @@ window.DATA.ready(function () {
     N.fetchRoute(pos, spot).then(function (route) {
       if (!trip.active || currentSpot() !== spot) return;
       Object.assign(trip, { route: route, step: 1, announced: {}, offCount: 0 });
+      // hand the route to the AR view (same session storage), so it never has to ask the routing server itself
+      try { sessionStorage.setItem('spraypath.route.' + spot.id, JSON.stringify({ at: Date.now(), route: route })); } catch (e) {}
       clearRoute();
       var latlngs = route.geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
       routeCasing = L.polyline(latlngs, { color: '#000', weight: 10, opacity: 0.5 }).addTo(map);
