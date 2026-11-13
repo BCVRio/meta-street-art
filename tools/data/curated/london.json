@@ -10,7 +10,10 @@
     "legal wall",
     "tunnel"
    ],
-   "blurb": "You're at Leake Street, the 300 metre tunnel under Waterloo station. Banksy launched it as a legal graffiti space with his Cans Festival in 2008, and the walls are repainted almost daily. If you see someone painting, stop and watch: it's one of the few places in London where it's allowed."
+   "blurb": "You're at Leake Street, the 300 metre tunnel under Waterloo station. Banksy launched it as a legal graffiti space with his Cans Festival in 2008, and the walls are repainted almost daily. If you see someone painting, stop and watch: it's one of the few places in London where it's allowed.",
+   "wiki": {
+    "wp": "en:Leake Street"
+   }
   },
   {
    "id": "undercroft",
@@ -22,7 +25,10 @@
     "skate spot",
     "tags"
    ],
-   "blurb": "This is the Southbank Undercroft, under the Queen Elizabeth Hall. Skaters have used it since the 1970s, and its layered tags and throw-ups were saved from redevelopment by a long public campaign in 2014."
+   "blurb": "This is the Southbank Undercroft, under the Queen Elizabeth Hall. Skaters have used it since the 1970s, and its layered tags and throw-ups were saved from redevelopment by a long public campaign in 2014.",
+   "wiki": {
+    "wp": "en:Southbank Centre"
+   }
   },
   {
    "id": "brick-lane",
@@ -34,7 +40,10 @@
     "murals",
     "paste-ups"
    ],
-   "blurb": "Welcome to Brick Lane, the heart of East London street art. Look up as well as along: big murals cover the side walls, and the shutters, doorways and drainpipes hide paste-ups, stencils and small sculptures."
+   "blurb": "Welcome to Brick Lane, the heart of East London street art. Look up as well as along: big murals cover the side walls, and the shutters, doorways and drainpipes hide paste-ups, stencils and small sculptures.",
+   "wiki": {
+    "wp": "en:Brick Lane"
+   }
   },
   {
    "id": "hanbury-street",
@@ -45,7 +54,11 @@
    "tags": [
     "murals"
    ],
-   "blurb": "Hanbury Street, just off Brick Lane, is home to some of the area's largest murals. The Belgian artist ROA painted his famous giant crane bird here in 2010, which helped put this street on the map."
+   "blurb": "Hanbury Street, just off Brick Lane, is home to some of the area's largest murals. The Belgian artist ROA painted his famous giant crane bird here in 2010, which helped put this street on the map.",
+   "wiki": {
+    "awp": "en:ROA (artist)",
+    "artist": "ROA"
+   }
   },
   {
    "id": "redchurch",
@@ -68,7 +81,10 @@
    "tags": [
     "rotating wall"
    ],
-   "blurb": "This is the Village Underground wall on Holywell Lane. Look for the old tube carriages on the roof above. The giant wall below gets a new piece every few months, often from internationally known artists."
+   "blurb": "This is the Village Underground wall on Holywell Lane. Look for the old tube carriages on the roof above. The giant wall below gets a new piece every few months, often from internationally known artists.",
+   "wiki": {
+    "wp": "en:Village Underground"
+   }
   },
   {
    "id": "rivington",
@@ -103,7 +119,11 @@
    "tags": [
     "Banksy"
    ],
-   "blurb": "Look up at the corner of Bruton Lane. That's Banksy's Shop Until You Drop from 2011, a woman falling from a building, still clutching her shopping trolley. It's one of the few Banksy pieces left in central London."
+   "blurb": "Look up at the corner of Bruton Lane. That's Banksy's Shop Until You Drop from 2011, a woman falling from a building, still clutching her shopping trolley. It's one of the few Banksy pieces left in central London.",
+   "wiki": {
+    "awp": "en:Banksy",
+    "artist": "Banksy"
+   }
   },
   {
    "id": "amy-winehouse",
@@ -115,7 +135,11 @@
     "portrait",
     "tribute"
    ],
-   "blurb": "This is Pegasus's tribute to Amy Winehouse on Bayham Street, just round the corner from the Camden pubs and venues she loved."
+   "blurb": "This is Pegasus's tribute to Amy Winehouse on Bayham Street, just round the corner from the Camden pubs and venues she loved.",
+   "wiki": {
+    "awp": "en:Amy Winehouse",
+    "artist": "Pegasus"
+   }
   },
   {
    "id": "camden-lock",
@@ -127,7 +151,10 @@
     "murals",
     "shopfronts"
    ],
-   "blurb": "Camden Market and the lock. Look out for the giant 3D shop-front sculptures on the High Street and the painted walls along the canal towpath."
+   "blurb": "Camden Market and the lock. Look out for the giant 3D shop-front sculptures on the High Street and the painted walls along the canal towpath.",
+   "wiki": {
+    "wp": "en:Camden Lock"
+   }
   },
   {
    "id": "hackney-wick",
@@ -139,7 +166,10 @@
     "canal",
     "graffiti"
    ],
-   "blurb": "Hackney Wick and Fish Island. Old warehouses and the canal walls here hold some of London's densest graffiti. Walk the towpath and the side streets off Wallis Road."
+   "blurb": "Hackney Wick and Fish Island. Old warehouses and the canal walls here hold some of London's densest graffiti. Walk the towpath and the side streets off Wallis Road.",
+   "wiki": {
+    "wp": "en:Hackney Wick"
+   }
   },
   {
    "id": "bowie",
@@ -151,7 +181,11 @@
     "portrait",
     "tribute"
    ],
-   "blurb": "You're facing the David Bowie mural by Jimmy C, opposite Brixton station. Bowie was born nearby in 1947. After he died in 2016 this wall became a shrine of flowers and messages. The mural is now protected behind a clear screen."
+   "blurb": "You're facing the David Bowie mural by Jimmy C, opposite Brixton station. Bowie was born nearby in 1947. After he died in 2016 this wall became a shrine of flowers and messages. The mural is now protected behind a clear screen.",
+   "wiki": {
+    "wp": "en:Aladdin Sane (mural)",
+    "artist": "Jimmy C"
+   }
   },
   {
    "id": "nuclear-dawn",
@@ -163,7 +197,11 @@
     "mural",
     "classic"
    ],
-   "blurb": "This is Nuclear Dawn, painted by Brian Barnes with Dale McCray in 1981, at the height of Cold War fears. A giant skeleton in a cape strides over London as a mushroom cloud rises. It's one of the best-known of the community murals that made Brixton famous."
+   "blurb": "This is Nuclear Dawn, painted by Brian Barnes with Dale McCray in 1981, at the height of Cold War fears. A giant skeleton in a cape strides over London as a mushroom cloud rises. It's one of the best-known of the community murals that made Brixton famous.",
+   "wiki": {
+    "wp": "en:Nuclear Dawn",
+    "awp": "en:Brian Barnes (artist)"
+   }
   },
   {
    "id": "stockwell-mural",
@@ -175,7 +213,10 @@
     "mural",
     "history"
    ],
-   "blurb": "The mural around the Stockwell war memorial was painted by Brian Barnes and Myra Harris in 2001. It honours Violette Szabo, a local resident who became a Second World War secret agent, alongside scenes from Stockwell's history."
+   "blurb": "The mural around the Stockwell war memorial was painted by Brian Barnes and Myra Harris in 2001. It honours Violette Szabo, a local resident who became a Second World War secret agent, alongside scenes from Stockwell's history.",
+   "wiki": {
+    "awp": "en:Brian Barnes (artist)"
+   }
   },
   {
    "id": "hokusai-wave",
@@ -198,7 +239,10 @@
     "public art",
     "community"
    ],
-   "blurb": "After the 2011 riots, people covered the boarded-up shop fronts on Rye Lane with thousands of Post-it notes saying what they loved about Peckham. The Peace Wall turns those messages into a permanent artwork. Get close and read a few."
+   "blurb": "After the 2011 riots, people covered the boarded-up shop fronts on Rye Lane with thousands of Post-it notes saying what they loved about Peckham. The Peace Wall turns those messages into a permanent artwork. Get close and read a few.",
+   "wiki": {
+    "wp": "en:Peckham Peace Wall"
+   }
   },
   {
    "id": "choose-your-weapon",
@@ -210,7 +254,11 @@
     "Banksy",
     "stencil"
    ],
-   "blurb": "Banksy painted Choose Your Weapon here in 2010: a hooded figure holding the lead of a barking dog drawn in the style of Keith Haring, a nod to the New York artist. It has faded and been tagged over the years, so look closely."
+   "blurb": "Banksy painted Choose Your Weapon here in 2010: a hooded figure holding the lead of a barking dog drawn in the style of Keith Haring, a nod to the New York artist. It has faded and been tagged over the years, so look closely.",
+   "wiki": {
+    "awp": "en:Banksy",
+    "artist": "Banksy"
+   }
   },
   {
    "id": "cable-street",
@@ -222,7 +270,10 @@
     "mural",
     "history"
    ],
-   "blurb": "This huge mural on the side of St George's Town Hall remembers the Battle of Cable Street on 4 October 1936, when East Enders blocked Oswald Mosley's British Union of Fascists from marching through. It was painted by Dave Binnington, Paul Butler, Ray Walker and Desmond Rochfort and finished in 1983."
+   "blurb": "This huge mural on the side of St George's Town Hall remembers the Battle of Cable Street on 4 October 1936, when East Enders blocked Oswald Mosley's British Union of Fascists from marching through. It was painted by Dave Binnington, Paul Butler, Ray Walker and Desmond Rochfort and finished in 1983.",
+   "wiki": {
+    "wp": "en:Cable Street Mural"
+   }
   },
   {
    "id": "hitchcock-mosaics",
@@ -234,7 +285,10 @@
     "mosaics",
     "film"
    ],
-   "blurb": "Alfred Hitchcock was born in Leytonstone in 1899. The mosaics in the passageway at Leytonstone station tell his life and films, from The Birds to Psycho. See how many you can name."
+   "blurb": "Alfred Hitchcock was born in Leytonstone in 1899. The mosaics in the passageway at Leytonstone station tell his life and films, from The Birds to Psycho. See how many you can name.",
+   "wiki": {
+    "wp": "en:Leytonstone tube station"
+   }
   },
   {
    "id": "wood-street-walls",
@@ -258,7 +312,10 @@
     "graffiti",
     "hall of fame"
    ],
-   "blurb": "In the shadow of Erno Goldfinger's Trellick Tower, these walls are a graffiti hall of fame where writers come to paint big, colourful pieces. They change all the time, so every visit is different."
+   "blurb": "In the shadow of Erno Goldfinger's Trellick Tower, these walls are a graffiti hall of fame where writers come to paint big, colourful pieces. They change all the time, so every visit is different.",
+   "wiki": {
+    "wp": "en:Trellick Tower"
+   }
   },
   {
    "id": "stik-holding-hands",
@@ -270,7 +327,11 @@
     "Stik",
     "sculpture"
    ],
-   "blurb": "Stik, famous for his simple stick figures, made this Holding Hands sculpture in 2020. With just two dots and a line he gives his figures a lot of feeling. Stik began painting on the streets of Hackney and Shoreditch."
+   "blurb": "Stik, famous for his simple stick figures, made this Holding Hands sculpture in 2020. With just two dots and a line he gives his figures a lot of feeling. Stik began painting on the streets of Hackney and Shoreditch.",
+   "wiki": {
+    "awp": "en:Stik",
+    "artist": "Stik"
+   }
   },
   {
    "id": "hydra-towers",
@@ -281,7 +342,11 @@
    "tags": [
     "mural"
    ],
-   "blurb": "This is Hydra Towers by Phlegm, a Sheffield artist known for his detailed black and white worlds of strange towers, machines and creatures. Take a minute to follow the little figures around the wall."
+   "blurb": "This is Hydra Towers by Phlegm, a Sheffield artist known for his detailed black and white worlds of strange towers, machines and creatures. Take a minute to follow the little figures around the wall.",
+   "wiki": {
+    "awp": "en:Phlegm (artist)",
+    "artist": "Phlegm"
+   }
   },
   {
    "id": "stik-haggerston",
@@ -293,7 +358,11 @@
     "Stik",
     "mural"
    ],
-   "blurb": "Stik painted this 14 metre high mural in 2012, commissioned by local residents. Stik's figures are simple, but where they stand and who they hold hands with often says something about the neighbourhood."
+   "blurb": "Stik painted this 14 metre high mural in 2012, commissioned by local residents. Stik's figures are simple, but where they stand and who they hold hands with often says something about the neighbourhood.",
+   "wiki": {
+    "awp": "en:Stik",
+    "artist": "Stik"
+   }
   }
  ],
  "tours": [

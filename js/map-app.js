@@ -55,7 +55,7 @@ window.DATA.ready(function () {
       el.querySelector('small').textContent = s.area;
       el.querySelector('button').onclick = function () { map.closePopup(); startTrip([s.id]); };
       el.querySelector('a').onclick = function (ev) { ev.preventDefault(); map.closePopup(); openAR(arLink(s.id)); };
-      m.bindPopup(el);
+      m.on('click', function () { openDetail(s); });
       spotMarkers[s.id] = m;
     });
   }
@@ -162,6 +162,49 @@ window.DATA.ready(function () {
   // ---------- Trip / turn-by-turn ----------
   var trip = { active: false, queue: [], idx: 0, route: null, step: 1, announced: {}, arrived: false, routing: false, rerouteAt: 0, offCount: 0 };
   function currentSpot() { return spotById[trip.queue[trip.idx]]; }
+  // ---------- One piece of art: picture, paragraph, find out more ----------
+  var detailSpot = null;
+  function showArt(spot, els) {
+    // els: { pic, img, credit, text, src, more }
+    var intro = els === detailEls ? spot.blurb.replace(/^You've reached /, '').replace(/^You're at /, '') : spot.blurb;
+    els.text.textContent = intro; els.text.classList.add('loading');
+    els.pic.classList.add('hidden'); if (els.src) els.src.textContent = ''; els.more.classList.add('hidden');
+    window.WIKI.lookup(spot).then(function (info) {
+      if (detailSpot !== spot && els === detailEls) return;          // user moved on
+      els.text.classList.remove('loading');
+      els.text.textContent = info.text && info.text !== spot.blurb ? info.text : intro;
+      if (info.artistText && info.text === spot.blurb) els.text.textContent = intro + ' About the artist: ' + info.artistText;
+      if (info.image) {
+        els.img.onload = function () { els.pic.classList.remove('hidden'); };
+        els.img.onerror = function () { els.pic.classList.add('hidden'); };
+        els.img.src = info.image; els.credit.textContent = info.credit || (info.source === 'Wikipedia' ? 'Wikipedia' : '');
+      }
+      if (els.src) els.src.textContent = info.source === 'Wikipedia' ? 'From Wikipedia (CC BY-SA)' : info.source === 'Wikimedia Commons' || info.source === 'Wikidata' ? 'Picture: Wikimedia Commons' : info.source === 'Wikipedia (artist)' ? 'Artist: Wikipedia (CC BY-SA)' : 'Street art changes fast; details from OpenStreetMap';
+      els.more.href = info.url; els.more.textContent = (info.source === 'Search the web' ? 'Search the web' : 'Find out more') + ' ↗'; els.more.classList.remove('hidden');
+    });
+  }
+  var detailEls = { pic: $('detail-pic'), img: $('detail-img'), credit: $('detail-credit'), text: $('detail-text'), src: $('detail-src'), more: $('detail-more') };
+  function openDetail(spot) {
+    detailSpot = spot;
+    $('detail-name').textContent = spot.name;
+    var meta = [spot.area].concat(spot.tags || []).filter(Boolean).join(' · ');
+    $('detail-meta').textContent = meta;
+    showArt(spot, detailEls);
+    $('browse').classList.add('hidden'); $('nav').classList.add('hidden'); $('detail').classList.remove('hidden');
+    $('detail-back').textContent = trip.active ? '← Back to directions' : '← Back';
+    setSheet(false); sheet.scrollTop = 0;
+    if (spotMarkers[spot.id]) map.panTo([spot.lat, spot.lng], { animate: true });
+  }
+  function closeDetail() {
+    $('detail').classList.add('hidden');
+    if (trip.active) $('nav').classList.remove('hidden'); else $('browse').classList.remove('hidden');
+    detailSpot = null;
+  }
+  $('detail-back').onclick = closeDetail;
+  $('detail-go').onclick = function () { var s = detailSpot; closeDetail(); if (s) startTrip([s.id]); };
+  $('detail-ar').onclick = function () { if (detailSpot) openAR(arLink(detailSpot.id)); };
+  $('nav-target').onclick = function () { if (trip.active) openDetail(currentSpot()); };
+
   // AR opens in a frame over the map (no page reload, so ZapWorks' screen stays away); closing it brings
   // the SprayPath title back with a "Next tour" button.
   var arOpen = false;
@@ -193,6 +236,8 @@ window.DATA.ready(function () {
   }
 
   function startTrip(ids, resumeIdx) {
+    $('detail').classList.add('hidden'); detailSpot = null;
+    $('story-pic').classList.add('hidden'); $('story-more').classList.add('hidden');
     trip.active = true; trip.queue = ids; trip.idx = resumeIdx || 0;
     save('trip', { queue: ids, idx: trip.idx });
     $('browse').classList.add('hidden');
@@ -211,7 +256,7 @@ window.DATA.ready(function () {
     Object.assign(trip, { route: null, step: 1, announced: {}, arrived: false, offCount: 0, rerouteAt: 0 });
     save('trip', { queue: trip.queue, idx: trip.idx });
     $('nav-target').textContent = (trip.queue.length > 1 ? 'STOP ' + (trip.idx + 1) + ' OF ' + trip.queue.length + ' · ' : '') + spot.name.toUpperCase();
-    $('story').classList.add('hidden');
+    $('story').classList.add('hidden'); $('story-pic').classList.add('hidden'); $('story-more').classList.add('hidden');
     $('btn-next').classList.add('hidden');
     $('turn-instr').textContent = pos ? 'Finding a walking route…' : 'Waiting for GPS…';
     $('turn-dist').textContent = '–';
@@ -331,6 +376,7 @@ window.DATA.ready(function () {
 
   function arrive(spot) {
     trip.arrived = true;
+    showArt(spot, { pic: $('story-pic'), img: $('story-img'), credit: $('story-credit'), text: $('story'), src: null, more: $('story-more') });
     N.buzz([200, 100, 200]);
     $('turn-dist').textContent = "You've arrived";
     $('turn-instr').textContent = spot.name;
@@ -434,7 +480,7 @@ window.DATA.ready(function () {
       b.querySelector('b').textContent = x.s.name;
       b.querySelector('small').textContent = x.s.area + ' · ' + x.s.tags.join(', ');
       b.querySelector('.dist').textContent = live ? N.fmtDist(x.d) : '→';
-      b.onclick = function () { startTrip([x.s.id]); };
+      b.onclick = function () { openDetail(x.s); };
       $('spots').appendChild(b);
     });
     if (list.length > 40) {

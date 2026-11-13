@@ -241,8 +241,17 @@ def main():
             sid = base if ids[base] == 1 else f"{base}-{ids[base]}"
             area = t.get('addr:suburb') or t.get('addr:quarter') or t.get('addr:neighbourhood') or t.get('addr:district')
             tags = [x for x in [kind.replace('_', ' '), 'artist: ' + artist if artist else None] if x]
-            spots.append({'id': sid, 'name': name, 'area': area or cname, 'lat': round(e['lat'], 5), 'lng': round(e['lon'], 5),
-                          'tags': tags, 'blurb': blurb(name, t, cname), 'osm': e['id'], '_area': area})
+            # links to public sources for the picture + "find out more" (js/wiki.js); short keys to keep the files small
+            wiki = {}
+            for k, src in (('wp', 'wikipedia'), ('swp', 'subject:wikipedia'), ('awp', 'artist:wikipedia'), ('wd', 'wikidata'), ('swd', 'subject:wikidata'),
+                           ('awd', 'artist:wikidata'), ('img', 'image'), ('commons', 'wikimedia_commons'), ('web', 'website')):
+                if t.get(src): wiki[k] = t[src].strip()
+            if artist: wiki['artist'] = artist
+            if wiki.get('img') and not re.search(r'wikimedia|wikipedia|^File:', wiki['img'], re.I): wiki.pop('img')   # other hosts block cross-origin use
+            spot = {'id': sid, 'name': name, 'area': area or cname, 'lat': round(e['lat'], 5), 'lng': round(e['lon'], 5),
+                    'tags': tags, 'blurb': blurb(name, t, cname), 'osm': e['id'], '_area': area}
+            if wiki: spot['wiki'] = wiki
+            spots.append(spot)
         if len(spots) < 1: continue
         tours = list(cur['tours']) + make_tours([s for s in spots if not s.get('curated')], cname, places)
         by_id = {s['id']: s for s in spots}
