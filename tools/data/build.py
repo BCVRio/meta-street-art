@@ -49,6 +49,55 @@ def artwork_name(t):
         if t.get(k): return t[k].strip()
     return None
 
+GENERIC = {'religious', 'street_art', 'street art', 'mural', 'murals', 'murales', 'graffiti', 'art', 'artwork', 'painting', 'unknown', 'yes', 'abstract',
+           'figurative', 'geometric', 'lettering', 'letters', 'text', 'tag', 'tags', 'wall painting', 'painting on wall', 'peinture murale', 'wandbild', 'wandmalerei', 'graffito',
+           'fresque', 'fresco', 'affresco', 'murale', 'mural painting', 'graffitis', 'street-art', 'streetart', 'arte urbano', 'arte urbana', 'wall', 'mosaic', 'mosaik', 'mozaika'}
+def clean(v, limit):
+    v = re.sub(r'\s+', ' ', (v or '').strip().strip('.;,'))
+    return v if 3 <= len(v) <= limit else None
+def derive_name(t, kind, artist, labels=None):
+    """A name for a piece OSM left unnamed, from whatever else was mapped (best hint first)."""
+    what = 'mural' if 'mural' in kind else 'graffiti' if 'graffiti' in kind else 'stencil' if 'stencil' in kind else 'street art'
+    What = what.capitalize()
+    subj = None
+    for k in ('artwork_subject', 'subject', 'subject:en'):
+        v = clean(t.get(k), 50)
+        if v and v.lower() not in GENERIC: subj = v; break
+    if not subj and labels:
+        for k in ('subject:wikidata', 'wikidata'):
+            q = (t.get(k) or '').split(';')[0].strip()
+            if q and labels.get(q): subj = labels[q]; break
+    if subj:
+        subj = subj[0].upper() + subj[1:]
+        return f"{What} of {subj}" + (f" by {artist}" if artist else '')
+    if artist: return f"{What} by {artist}"
+    ins = clean(t.get('inscription'), 40)
+    if ins: return f"“{ins}” {what}"
+    desc = clean(t.get('description:en') or t.get('description'), 120)
+    if desc:
+        first = re.split(r'[.;:]| - |, ', desc)[0].strip()
+        if 6 <= len(first) <= 55 and first.lower() not in GENERIC: return first[0].upper() + first[1:]
+    for k in ('wikimedia_commons', 'image'):
+        v = t.get(k) or ''
+        m = re.search(r'(?:File:|commons/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/)([^/?#]+)', v)
+        if m:
+            f = re.sub(r'\.[a-zA-Z]{3,4}$', '', m.group(1)); f = f.replace('_', ' ')
+            if ' ' not in f and f.count('-') >= 2: f = f.replace('-', ' ')
+            try: f = __import__('urllib.parse').parse.unquote(f)
+            except Exception: pass
+            f = re.sub(r'\(.*?\)', '', f); f = re.sub(r'\b(19|20)\d\d\b|\b\d{1,3}\b|\bIMG\b|\bDSC\w*', '', f)
+            f = re.sub(r'\s+', ' ', f).strip(' -_,')
+            if 6 <= len(f) <= 60 and not re.match(r'^[\d\s\-]+$', f): return f[0].upper() + f[1:]
+    rel = (t.get('denomination') or t.get('religion') or '').strip()
+    if rel: return f"{rel.replace('_', ' ').capitalize()} {what}"
+    street = clean(t.get('addr:street'), 40)
+    if street: return f"{What} on {street}"
+    op = clean(t.get('operator'), 40)
+    if op: return f"{What} on a {op} box"
+    year = (t.get('start_date') or '')[:4]
+    if year.isdigit(): return f"{What} from {year}"
+    return f"Untitled {what}"
+
 def blurb(name, t, city):
     """A short spoken story from the tags; honest about what we know."""
     kind = {'mural': 'mural', 'graffiti': 'graffiti piece', 'street_art': 'street art piece', 'stencil': 'stencil', 'paste_up': 'paste-up'}.get(
@@ -233,9 +282,7 @@ def main():
         for e in els:
             t = e['tags']; name = artwork_name(t); artist = (t.get('artist_name') or t.get('artist') or '').strip()
             kind = (t.get('artwork_type') or 'mural').split(';')[0].lower()
-            if not name:
-                what = 'mural' if 'mural' in kind else 'graffiti' if 'graffiti' in kind else 'street art'
-                name = f"{what.capitalize()} by {artist}" if artist else f"Untitled {what}"
+            if not name: name = derive_name(t, kind, artist)
             if cur_grid.near((e['lat'], e['lon']), 40)[0]: continue      # already hand-written
             base = slug(name); ids[base] += 1
             sid = base if ids[base] == 1 else f"{base}-{ids[base]}"
