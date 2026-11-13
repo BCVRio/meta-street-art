@@ -193,7 +193,8 @@ window.DATA.ready(function () {
     $('browse').classList.add('hidden'); $('nav').classList.add('hidden'); $('detail').classList.remove('hidden');
     $('detail-back').textContent = trip.active ? '← Back to directions' : '← Back';
     setSheet(false); sheet.scrollTop = 0;
-    if (spotMarkers[spot.id]) map.panTo([spot.lat, spot.lng], { animate: true });
+    // keep the chosen pin, and its neighbours, in the part of the map above the panel
+    setTimeout(function () { centreOn([spot.lat, spot.lng], Math.max(map.getZoom(), 16), true); }, 50);
   }
   function closeDetail() {
     $('detail').classList.add('hidden');

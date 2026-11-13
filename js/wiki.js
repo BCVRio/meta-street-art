@@ -10,8 +10,8 @@ window.WIKI = (function () {
   'use strict';
   var cache = {};
   function get(url) {
-    return fetch(url, { headers: { 'Api-User-Agent': 'SprayPath/1.0 (street art walking tours)' } })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    // plain GET, no custom headers: keeps every call a "simple" CORS request (no preflight) on all browsers
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
   }
   function splitWiki(tag) {            // "en:Leake Street" → { lang, title }
     var m = /^([a-z\-]{2,12}):(.+)$/.exec(tag || '');
@@ -64,11 +64,14 @@ window.WIKI = (function () {
         return summary('en', m.title);
       });
   }
-  function commonsNearby(spot) {        // a Commons photo taken within 50 m whose title names the piece or its artist
-    return get('https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=' + spot.lat + '|' + spot.lng + '&gsradius=50&gsnamespace=6&gslimit=20&format=json&origin=*')
-      .then(function (d) {
+  var ART_WORDS = /mural|murales|graffiti|graffito|street.?art|streetart|fresque|fresco|affresco|wandbild|wandmalerei|wall ?painting|peinture murale|stencil|paste.?up|mosaic|mosaik|mozaika/i;
+  function commonsNearby(spot) {        // a Commons photo taken within 50 m whose title names the piece or its artist,
+    return get('https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=' + spot.lat + '|' + spot.lng + '&gsradius=50&gsnamespace=6&gslimit=30&format=json&origin=*')
+      .then(function (d) {           // else one within 25 m whose title says it is a mural / graffiti / street art
         var hits = (d.query && d.query.geosearch) || [], artist = (spot.wiki && spot.wiki.artist) || '';
-        var m = hits.filter(function (h) { var t = h.title.replace(/^File:/, '').replace(/\.[a-z]+$/i, ''); return similar(t, spot.name) || (artist && similar(t, artist)); })[0];
+        var title = function (h) { return h.title.replace(/^File:/, '').replace(/\.[a-z]+$/i, '').replace(/_/g, ' '); };
+        var m = hits.filter(function (h) { var t = title(h); return similar(t, spot.name) || (artist && similar(t, artist)); })[0]
+             || hits.filter(function (h) { return h.dist <= 25 && ART_WORDS.test(title(h)); })[0];
         if (!m) throw new Error('no commons photo nearby');
         return commonsImage(m.title);
       });
