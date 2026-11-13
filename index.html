@@ -115,6 +115,20 @@
     #detail .btns > *, a.btn { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; font-size: 14px; }
     #detail .btns .primary, a.btn.primary { background: var(--accent); color: #000; border-color: var(--accent); }
     #story-more { display: inline-block; margin-top: 8px; }
+    .report-btn { display: block; width: 100%; margin-top: 12px; padding: 10px; border-radius: 12px; border: 1px dashed var(--line); background: none; color: var(--muted); font-size: 13px; }
+    .spot-pin.gone { background: #555; box-shadow: none; opacity: .6; }
+    .spot .status { color: #ffcf73; font-size: 12px; }
+    #report { position: fixed; inset: 0; z-index: 4000; display: grid; place-items: end center; background: rgba(0,0,0,.45); padding: 12px; }
+    #report .report-card { width: min(100%, 420px); border-radius: 20px; padding: 16px 18px calc(16px + env(safe-area-inset-bottom)); }
+    #report b { font-size: 18px; }
+    #report-kinds { display: grid; gap: 8px; margin: 12px 0; }
+    #report-kinds button { text-align: left; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; }
+    #report-kinds button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+    #report-extra { width: 100%; font: inherit; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); resize: none; }
+    #report .btns { display: flex; gap: 8px; margin-top: 10px; }
+    #report .btns button { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; }
+    #report .btns .primary { background: var(--accent); color: #000; border-color: var(--accent); }
+    #report-done { margin-top: 10px; color: var(--ok); font-weight: 600; }
     .glass { background: rgba(14,14,20,.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); }
     #brand { padding: 4px 2px; flex: 1; min-width: 0; text-shadow: 0 1px 2px #000, 0 0 14px rgba(0,0,0,.9); }
     #brand small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 2.5px; color: var(--accent-2); }
@@ -216,6 +230,16 @@
 </section>
 
 <div id="map"></div>
+<div id="report" class="hidden" role="dialog" aria-label="Report a change">
+  <div class="report-card glass">
+    <b id="report-title">What’s happened to it?</b>
+    <div id="report-kinds"></div>
+    <textarea id="report-extra" rows="2" placeholder="Anything else? (optional)"></textarea>
+    <p class="credit">Your report goes to OpenStreetMap as a public note at this spot, so the map gets fixed for everyone. No account needed.</p>
+    <div class="btns"><button id="report-send" class="primary">Send report</button><button id="report-cancel">Cancel</button></div>
+    <div id="report-done" class="hidden"></div>
+  </div>
+</div>
 <iframe id="ar-frame" hidden title="AR view" allow="camera; microphone; geolocation; accelerometer; gyroscope; magnetometer; xr-spatial-tracking; autoplay"></iframe>
 
 <div id="top">
@@ -259,6 +283,8 @@
       <button id="detail-ar">📷 AR view</button>
       <a id="detail-more" class="btn" target="_blank" rel="noopener">Find out more ↗</a>
     </div>
+    <p id="detail-status" class="credit hidden"></p>
+    <button id="detail-report" class="report-btn">⚑ Something wrong? Gone, changed…</button>
   </div>
 
   <!-- Navigating -->
@@ -272,6 +298,7 @@
     <div id="story-pic" class="hidden"><img id="story-img" alt="" crossorigin="anonymous"><small id="story-credit"></small></div>
     <div id="story" class="hidden"></div>
     <a id="story-more" class="btn hidden" target="_blank" rel="noopener">Find out more ↗</a>
+    <button id="story-report" class="report-btn hidden">⚑ Not here any more? Report it</button>
     <div class="btns">
       <a class="btn primary" id="btn-ar" href="ar.html">📷 AR view</a>
       <button id="btn-steps">Steps</button>
@@ -287,6 +314,7 @@
 <script src="js/data.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/wiki.js"></script>
+<script src="js/report.js"></script>
 <script src="js/map-app.js"></script>
 <script src="js/splash.js"></script>
 </body>

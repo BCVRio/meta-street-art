@@ -45,10 +45,11 @@ window.DATA.ready(function () {
   });
 
   var spotMarkers = {}, markerLayer = L.layerGroup().addTo(map);
+  function pinIcon(s) { return L.divIcon({ className: '', html: '<div class="spot-pin' + (window.REPORT.isGone(s) ? ' gone' : '') + '"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }); }
   function renderMarkers() {
     markerLayer.clearLayers(); spotMarkers = {};
     window.SPOTS.forEach(function (s) {
-      var m = L.marker([s.lat, s.lng], { icon: L.divIcon({ className: '', html: '<div class="spot-pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(markerLayer);
+      var m = L.marker([s.lat, s.lng], { icon: pinIcon(s) }).addTo(markerLayer);
       var el = document.createElement('div');
       el.innerHTML = '<b></b><small></small><div class="pbtns"><button class="primary">Directions</button><a>📷 AR</a></div>';
       el.querySelector('b').textContent = s.name;
@@ -162,6 +163,53 @@ window.DATA.ready(function () {
   // ---------- Trip / turn-by-turn ----------
   var trip = { active: false, queue: [], idx: 0, route: null, step: 1, announced: {}, arrived: false, routing: false, rerouteAt: 0, offCount: 0 };
   function currentSpot() { return spotById[trip.queue[trip.idx]]; }
+  // ---------- Reports: gone / changed / wrong place ----------
+  var reportSpot = null, reportKind = null;
+  function openReport(spot) {
+    reportSpot = spot; reportKind = null;
+    $('report-title').textContent = 'What’s happened to “' + spot.name + '”?';
+    var box = $('report-kinds'); box.innerHTML = '';
+    Object.keys(window.REPORT.KINDS).forEach(function (k) {
+      var b = document.createElement('button'); b.textContent = window.REPORT.KINDS[k].label; b.setAttribute('aria-pressed', 'false');
+      b.onclick = function () { reportKind = k; [].forEach.call(box.children, function (c) { c.setAttribute('aria-pressed', c === b); }); };
+      box.appendChild(b);
+    });
+    $('report-extra').value = ''; $('report-done').classList.add('hidden'); $('report-send').disabled = false; $('report-send').textContent = 'Send report';
+    $('report').classList.remove('hidden');
+  }
+  function closeReport() { $('report').classList.add('hidden'); reportSpot = null; }
+  function afterReport(spot) {
+    if (spotMarkers[spot.id]) spotMarkers[spot.id].setIcon(pinIcon(spot));
+    renderSpots(true);
+    if (detailSpot === spot) { var rs = window.REPORT.status(spot); $('detail-status').textContent = rs ? '⚑ ' + rs : ''; $('detail-status').classList.toggle('hidden', !rs); }
+  }
+  $('report-cancel').onclick = closeReport;
+  $('report-send').onclick = function () {
+    if (!reportSpot || !reportKind) { $('report-done').textContent = 'Pick one of the options first.'; $('report-done').classList.remove('hidden'); return; }
+    var spot = reportSpot, kind = reportKind, extra = $('report-extra').value.trim();
+    $('report-send').disabled = true; $('report-send').textContent = 'Sending…';
+    var already = window.REPORT.get(spot.id);
+    var p = (already && already.note) ? Promise.resolve(already.note) : window.REPORT.send(spot, kind, extra);
+    p.then(function (noteId) {
+      window.REPORT.remember(spot.id, kind, noteId);
+      $('report-done').textContent = kind === 'ok' ? 'Thanks! Good to know it’s still there.' : 'Thanks, reported. Local mappers will check it and the map will update.';
+      $('report-done').classList.remove('hidden'); $('report-send').textContent = 'Sent ✓';
+      afterReport(spot);
+      setTimeout(closeReport, 1800);
+    }).catch(function (e) {
+      window.REPORT.remember(spot.id, kind, null);          // keep it on this phone even if OSM was unreachable
+      $('report-done').textContent = 'Saved on this phone; OpenStreetMap could not be reached (' + (e.message || e) + ').';
+      $('report-done').classList.remove('hidden'); $('report-send').textContent = 'Saved';
+      afterReport(spot);
+      setTimeout(closeReport, 2500);
+    });
+  };
+  // the AR view (in its frame) asks us to open the dialog for its target
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || e.data.type !== 'spraypath-report') return;
+    var spot = spotById[e.data.spot]; if (spot) openReport(spot);
+  });
+
   // ---------- One piece of art: picture, paragraph, find out more ----------
   var detailSpot = null;
   function showArt(spot, els) {
@@ -192,6 +240,9 @@ window.DATA.ready(function () {
     showArt(spot, detailEls);
     $('browse').classList.add('hidden'); $('nav').classList.add('hidden'); $('detail').classList.remove('hidden');
     $('detail-back').textContent = trip.active ? '← Back to directions' : '← Back';
+    var rs = window.REPORT.status(spot);
+    $('detail-status').textContent = rs ? '⚑ ' + rs : ''; $('detail-status').classList.toggle('hidden', !rs);
+    $('detail-report').onclick = function () { openReport(spot); };
     setSheet(false); sheet.scrollTop = 0;
     // keep the chosen pin, and its neighbours, in the part of the map above the panel
     setTimeout(function () { centreOn([spot.lat, spot.lng], Math.max(map.getZoom(), 16), true); }, 50);
@@ -238,7 +289,7 @@ window.DATA.ready(function () {
 
   function startTrip(ids, resumeIdx) {
     $('detail').classList.add('hidden'); detailSpot = null;
-    $('story-pic').classList.add('hidden'); $('story-more').classList.add('hidden');
+    $('story-pic').classList.add('hidden'); $('story-more').classList.add('hidden'); $('story-report').classList.add('hidden');
     trip.active = true; trip.queue = ids; trip.idx = resumeIdx || 0;
     save('trip', { queue: ids, idx: trip.idx });
     $('browse').classList.add('hidden');
@@ -380,6 +431,7 @@ window.DATA.ready(function () {
   function arrive(spot) {
     trip.arrived = true;
     showArt(spot, { pic: $('story-pic'), img: $('story-img'), credit: $('story-credit'), text: $('story'), src: null, more: $('story-more') });
+    $('story-report').classList.remove('hidden'); $('story-report').onclick = function () { openReport(spot); };
     N.buzz([200, 100, 200]);
     $('turn-dist').textContent = "You've arrived";
     $('turn-instr').textContent = spot.name;
@@ -482,6 +534,8 @@ window.DATA.ready(function () {
       b.innerHTML = '<div class="meta"><b></b><small></small></div><span class="dist"></span>';
       b.querySelector('b').textContent = x.s.name;
       b.querySelector('small').textContent = x.s.area + ' · ' + x.s.tags.join(', ');
+      var rs = window.REPORT.status(x.s);
+      if (rs) { var st = document.createElement('div'); st.className = 'status'; st.textContent = '⚑ ' + rs; b.querySelector('.meta').appendChild(st); }
       b.querySelector('.dist').textContent = live ? N.fmtDist(x.d) : '→';
       b.onclick = function () { openDetail(x.s); };
       $('spots').appendChild(b);

@@ -633,6 +633,7 @@
     $('compass-btn').classList.toggle('hidden', state.orientEvents > 0);
     $('compass-hint').classList.toggle('hidden', state.orientEvents > 0 || !$('status').classList.contains('collapsed'));
     $('story').classList.toggle('hidden', !state.arrived);
+    $('story-report').classList.toggle('hidden', !(state.arrived && params.has('embed') && window.parent !== window));
     $('demo-badge').classList.toggle('hidden', !demo);
     if (state.arrived && state.target) $('story').textContent = state.target.blurb;
   }
@@ -642,6 +643,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     setupTracking();
     $('track-reset').onclick = relock;
+    $('story-report').onclick = function () { if (state.target) window.parent.postMessage({ type: 'spraypath-report', spot: state.target.id }, location.origin); };
     $('scan-skip').onclick = function () { scan.skipped = true; hideScan(); if (state.ground !== 'good') state.ground = 'limited'; groundWaitFrom = 1; };
     var next = { world: 'instant', instant: 'attitude', attitude: 'world' }, names = { world: 'ground tracking', instant: 'instant tracking', attitude: 'rotation-only' };
     $('track-mode').onclick = function () { setTracking(next[tracking]); };
