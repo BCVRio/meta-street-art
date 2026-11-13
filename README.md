@@ -24,12 +24,13 @@ ar.html             AR page (A-Frame scene with zappar-camera, zappar-permission
 js/errors.js        On-screen error banner (phones have no console)
 js/worker-shim.js   Starts Zappar's workers from blob: URLs so they run under ZapWorks' cross-origin isolation
 js/data.js          Loads one city's spots and tours on demand (data/index.json, data/cities/<city>.json)
+js/wiki.js          Picture + paragraph + Find out more for a spot, from Wikipedia / Wikidata / Wikimedia Commons (on tap)
 js/nav.js           Geo maths, OSRM walking routes, voice, compass
 js/map-app.js       Map page logic
 js/splash.js        Title page: animates the key art (assets/title-keyart.webp, made with Higgsfield) and Begin now
 js/ar-app.js        AR: route + turn-by-turn, components sp-world (north + GPS alignment), sp-dots, sp-pointer, sp-arrow, sp-label; status panel
 data/               Per-city street art data built from OpenStreetMap (see tools/data/fetch.md)
-tools/data/         build.py (OSM → per-city JSON + auto tours), fetch-places.py, curated/london.json (hand-written London)
+tools/data/         build.py (OSM → per-city JSON + auto tours), fetch-overpass.py, fetch-places.py, merge-wiki.py, curated/london.json (hand-written London)
 assets/             Title key art; sounds/welcome.mp3 sound logo (voice made with Higgsfield, spray and chime synthesised)
 vendor/             A-Frame 1.8.0, Zappar for A-Frame 4.0.0 (bundled), Leaflet 1.9.4, Bungee font (OFL)
 tools/zappar-build  How vendor/zappar-aframe is built (scripts/build-zappar.sh)

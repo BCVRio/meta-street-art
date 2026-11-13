@@ -3,7 +3,8 @@
 //   2. else its Wikidata item (OSM `wikidata`): the item's Wikipedia article in any language, plus its image (P18);
 //   3. else a Wikipedia article within 80 m whose title matches the spot or its artist ("nearby" search);
 //   4. else a Wikimedia Commons image named in OSM (`image` / `wikimedia_commons`), with our own blurb;
-//   5. else our blurb alone, with a web search as "find out more".
+//   5. else a Commons photo taken within 50 m whose title names the piece or the artist;
+//   6. else our blurb alone, with a web search as "find out more".
 // All of these answer CORS requests, which ZapWorks' cross-origin isolation requires. Results are cached per session.
 window.WIKI = (function () {
   'use strict';
@@ -20,6 +21,8 @@ window.WIKI = (function () {
     return get('https://' + lang + '.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title.replace(/ /g, '_')))
       .then(function (d) {
         if (!d || d.type === 'disambiguation' || !d.extract) throw new Error('no summary');
+        // a title clash with something that is clearly not a wall (e.g. "Nuclear Dawn" the video game)
+        if (/\b(video game|film|album|song|band|novel|television|footballer|politician)\b/i.test(d.description || '')) throw new Error('wrong subject');
         return { title: d.title, text: d.extract, image: d.thumbnail && d.thumbnail.source ? d.thumbnail.source.replace(/\/\d+px-/, '/640px-') : null,
                  url: d.content_urls && d.content_urls.mobile ? d.content_urls.mobile.page : 'https://' + lang + '.m.wikipedia.org/wiki/' + encodeURIComponent(title), source: 'Wikipedia' };
       });
@@ -61,6 +64,15 @@ window.WIKI = (function () {
         return summary('en', m.title);
       });
   }
+  function commonsNearby(spot) {        // a Commons photo taken within 50 m whose title names the piece or its artist
+    return get('https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=' + spot.lat + '|' + spot.lng + '&gsradius=50&gsnamespace=6&gslimit=20&format=json&origin=*')
+      .then(function (d) {
+        var hits = (d.query && d.query.geosearch) || [], artist = (spot.wiki && spot.wiki.artist) || '';
+        var m = hits.filter(function (h) { var t = h.title.replace(/^File:/, '').replace(/\.[a-z]+$/i, ''); return similar(t, spot.name) || (artist && similar(t, artist)); })[0];
+        if (!m) throw new Error('no commons photo nearby');
+        return commonsImage(m.title);
+      });
+  }
   function fallback(spot, extra) {
     var q = encodeURIComponent(spot.name + ' ' + (spot.area || '') + ' street art');
     return Object.assign({ title: spot.name, text: spot.blurb, image: null, url: 'https://duckduckgo.com/?q=' + q, source: 'Search the web' }, extra || {});
@@ -87,6 +99,7 @@ window.WIKI = (function () {
         if (img && /wikimedia|wikipedia|^File:/i.test(img)) return commonsImage(img).then(function (c) { return fallback(spot, { image: c.image, credit: c.credit, url: c.page, source: 'Wikimedia Commons' }); });
         throw new Error('no image');
       })
+      .catch(function () { return commonsNearby(spot).then(function (c) { return fallback(spot, { image: c.image, credit: c.credit, url: c.page, source: 'Wikimedia Commons' }); }); })
       .catch(function () {
         // the artist's article is still a good "find out more"
         var awp = splitWiki(w.awp);
